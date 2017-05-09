@@ -8,7 +8,7 @@ def Debilinear(src, width, height, yuv444=False, gray=False, chromaloc=None):
     return Descale(src, width, height, kernel='bilinear', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Debicubic(src, width, height, b=1/3, c=1/3, yuv444=False, gray=False, chromaloc=None):
-    return Descale(src, width, height, kernel='bicubic', b=b, c=b, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
+    return Descale(src, width, height, kernel='bicubic', b=b, c=c, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Delanczos(src, width, height, taps=3, yuv444=False, gray=False, chromaloc=None):
     return Descale(src, width, height, kernel='lanczos', b=None, c=None, taps=taps, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
