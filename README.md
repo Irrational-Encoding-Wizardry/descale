@@ -8,15 +8,15 @@ The plugin itself only supports GrayS input.
 The included python wrapper supports YUV, Gray, and RGB of every bitdepth.
 
 ```
-descale.Debilinear(src:clip, width:int, height:int, src_left:float:opt, src_top:float:opt)
+descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0)
 
-descale.Debicubic(src:clip, width:int, height:int, b:float:opt, c:float:opt, src_left:float:opt, src_top:float:opt)
+descale.Debicubic(clip src, int width, int height, float b=1/3, float c=1/3, float src_left=0.0, float src_top=0.0)
 
-descale.Delanczos(src:clip, width:int, height:int, taps:int:opt, src_left:float:opt, src_top:float:opt)
+descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0)
 
-descale.Despline16(src:clip, width:int, height:int, src_left:float:opt, src_top:float:opt)
+descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0)
 
-descale.Despline36(src:clip, width:int, height:int, src_left:float:opt, src_top:float:opt)
+descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0)
 ```
 
 ## How does this work?
