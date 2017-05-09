@@ -4,8 +4,8 @@ VapourSynth plugin to undo upscaling.
 
 ## Usage
 
-The plugin itself only supports GrayS input.
-The included python wrapper supports YUV, Gray, and RGB of every bitdepth.
+The plugin itself only supports GrayS, RGBS, and YUV444PS input.
+The included python wrapper supports YUV (every subsampling), Gray, and RGB of every bitdepth.
 
 ```
 descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0)

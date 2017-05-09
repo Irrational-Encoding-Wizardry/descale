@@ -1,4 +1,4 @@
-from vapoursynth import core, GRAYS, GRAY, YUV, RGB  # You need Vapoursynth R37 or newer
+from vapoursynth import core, GRAYS, RGBS, GRAY, YUV, RGB  # You need Vapoursynth R37 or newer
 from functools import partial
 
 
@@ -31,10 +31,7 @@ def Descale(src, width, height, kernel='bilinear', b=1/3, c=1/3, taps=3, yuv444=
     descale_filter = get_filter(b, c, taps, kernel)
 
     if src_cf == RGB and not gray:
-        r = descale_filter(to_grays(get_plane(src, 0)), width, height)
-        g = descale_filter(to_grays(get_plane(src, 1)), width, height)
-        b = descale_filter(to_grays(get_plane(src, 2)), width, height)
-        rgb = core.std.ShufflePlanes([r,g,b], [0,0,0], RGB)
+        rgb = descale_filter(to_rgbs(src), width, height)
         return rgb.resize.Point(format=src_f.id)
 
     y = descale_filter(to_grays(src), width, height)
@@ -43,6 +40,9 @@ def Descale(src, width, height, kernel='bilinear', b=1/3, c=1/3, taps=3, yuv444=
 
     if src_cf == GRAY or gray:
         return y
+
+    if not yuv444 and ((width % 2 and src_sw) or (height % 2 and src_sh)):
+        raise ValueError('Descale: The output dimension and the subsampling are incompatible.')
 
     uv_f = core.register_format(src_cf, src_st, src_bits, 0 if yuv444 else src_sw, 0 if yuv444 else src_sh)
     uv = src.resize.Spline36(width, height, format=uv_f.id, chromaloc_s=chromaloc)
@@ -54,6 +54,10 @@ def Descale(src, width, height, kernel='bilinear', b=1/3, c=1/3, taps=3, yuv444=
 
 def to_grays(src):
     return src.resize.Point(format=GRAYS)
+
+
+def to_rgbs(src):
+    return src.resize.Point(format=RGBS)
 
 
 def get_plane(src, plane):

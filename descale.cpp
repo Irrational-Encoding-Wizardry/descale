@@ -98,7 +98,10 @@ void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, std::vector<d
 }
 
 
-void banded_cholesky_decomposition(int rows, int bandwidth, std::vector<double> &matrix)
+// LDLT decomposition (variant of Cholesky decomposition)
+// Input is only the upper part of a banded symmetrical matrix in compressed form.
+// The input matrix is modified in-place and equals L' in compressed form after decomposition.
+void banded_ldlt_decomposition(int rows, int bandwidth, std::vector<double> &matrix)
 {
     int c = (bandwidth + 1) / 2;
     // Division by 0 can happen if shift is used
@@ -431,60 +434,55 @@ static const VSFrameRef *VS_CC descale_get_frame(int n, int activationReason, vo
         const VSFrameRef * src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat * fi = d->vi->format;
 
-        int current_width = vsapi->getFrameWidth(src, 0);
-        int current_height = vsapi->getFrameHeight(src, 0);
-        
+        VSFrameRef * intermediate = vsapi->newVideoFrame(fi, d->width, d->vi->height, src, core);
+        VSFrameRef * dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
 
-        const int src_stride = vsapi->getStride(src, 0) / sizeof(float);
-        const float * srcp = reinterpret_cast<const float *>(vsapi->getReadPtr(src, 0));
-        
+        for (int plane = 0; plane < d->vi->format->numPlanes; ++plane) {
+            int current_width = vsapi->getFrameWidth(src, plane);
+            int current_height = vsapi->getFrameHeight(src, plane);
 
-        if (d->process_h && d->process_v) {
-            VSFrameRef * intermediate = vsapi->newVideoFrame(fi, d->width, current_height, src, core);
+            const int src_stride = vsapi->getStride(src, plane) / sizeof(float);
+            const float * srcp = reinterpret_cast<const float *>(vsapi->getReadPtr(src, plane));
 
-            const int intermediate_stride = vsapi->getStride(intermediate, 0) / sizeof(float);
-            float * VS_RESTRICT intermediatep = reinterpret_cast<float *>(vsapi->getWritePtr(intermediate, 0));
+            if (d->process_h && d->process_v) {
+                const int intermediate_stride = vsapi->getStride(intermediate, plane) / sizeof(float);
+                float * VS_RESTRICT intermediatep = reinterpret_cast<float *>(vsapi->getWritePtr(intermediate, plane));
 
-            if (d->process_h) {
                 process_plane_h(d->width, current_height, current_width, d->bandwidth, d->weights_h_left_idx, d->weights_h_right_idx, d->weights_h,
                                 d->lower_h, d->upper_h, d->diagonal_h, src_stride, intermediate_stride, srcp, intermediatep);
-            }
 
-            VSFrameRef * dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
-            const int dst_stride = vsapi->getStride(dst, 0) / sizeof(float);
-            float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, 0));
 
-            if (d->process_v) {
+                const int dst_stride = vsapi->getStride(dst, plane) / sizeof(float);
+                float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
+
                 process_plane_v(d->height, current_width, current_height, d->bandwidth, d->weights_v_left_idx, d->weights_v_right_idx, d->weights_v,
                                 d->lower_v, d->upper_v, d->diagonal_v, intermediate_stride, dst_stride, intermediatep, dstp);
-            }
 
+            } else if (d->process_h) {
+                const int dst_stride = vsapi->getStride(dst, plane) / sizeof(float);
+                float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
+
+                process_plane_h(d->width, current_height, current_width, d->bandwidth, d->weights_h_left_idx, d->weights_h_right_idx, d->weights_h,
+                                d->lower_h, d->upper_h, d->diagonal_h, src_stride, dst_stride, srcp, dstp);
+
+            } else if (d->process_v) {
+                const int dst_stride = vsapi->getStride(dst, plane) / sizeof(float);
+                float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
+
+                process_plane_v(d->height, current_width, current_height, d->bandwidth, d->weights_v_left_idx, d->weights_v_right_idx, d->weights_v,
+                                d->lower_v, d->upper_v, d->diagonal_v, src_stride, dst_stride, srcp, dstp);
+            }
+        }
+
+        if (d->process_h || d->process_v) {
             vsapi->freeFrame(src);
             vsapi->freeFrame(intermediate);
 
             return dst;
 
-        } else if (d->process_h) {
-            VSFrameRef * dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
-            const int dst_stride = vsapi->getStride(dst, 0) / sizeof(float);
-            float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, 0));
-            process_plane_h(d->width, current_height, current_width, d->bandwidth, d->weights_h_left_idx, d->weights_h_right_idx, d->weights_h,
-                            d->lower_h, d->upper_h, d->diagonal_h, src_stride, dst_stride, srcp, dstp);
-            vsapi->freeFrame(src);
-
-            return dst;
-
-        } else if (d->process_v) {
-            VSFrameRef * dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
-            const int dst_stride = vsapi->getStride(dst, 0) / sizeof(float);
-            float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, 0));
-            process_plane_v(d->height, current_width, current_height, d->bandwidth, d->weights_v_left_idx, d->weights_v_right_idx, d->weights_v,
-                            d->lower_v, d->upper_v, d->diagonal_v, src_stride, dst_stride, srcp, dstp);
-            vsapi->freeFrame(src);
-
-            return dst;
-
         } else {
+            vsapi->freeFrame(intermediate);
+            vsapi->freeFrame(dst);
 
             return src;
         }
@@ -539,7 +537,7 @@ void descale_create(DescaleMode mode, int support, DescaleData &d)
         
         std::vector<double> upper (d.width * d.width, 0);
         upper = compress_symmetric_banded_matrix(d.width, d.bandwidth, multiplied_weights);
-        banded_cholesky_decomposition(d.width, d.bandwidth, upper);
+        banded_ldlt_decomposition(d.width, d.bandwidth, upper);
         upper = uncrompress_symmetric_banded_matrix(d.width, d.bandwidth, upper);
         std::vector<double> lower = transpose_matrix(d.width, upper);
         multiply_banded_matrix_with_diagonal(d.width, d.bandwidth, lower);
@@ -586,7 +584,7 @@ void descale_create(DescaleMode mode, int support, DescaleData &d)
         
         std::vector<double> upper (d.height * d.height, 0);
         upper = compress_symmetric_banded_matrix(d.height, d.bandwidth, multiplied_weights);
-        banded_cholesky_decomposition(d.height, d.bandwidth, upper);
+        banded_ldlt_decomposition(d.height, d.bandwidth, upper);
         upper = uncrompress_symmetric_banded_matrix(d.height, d.bandwidth, upper);
         std::vector<double> lower = transpose_matrix(d.height, upper);
         multiply_banded_matrix_with_diagonal(d.height, d.bandwidth, lower);
@@ -619,8 +617,8 @@ static void VS_CC debilinear_create(const VSMap *in, VSMap *out, void *userData,
     d.vi_dst = vsapi->getVideoInfo(d.node);
     int err;
 
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS is the only supported input format.");
+    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
+        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -678,8 +676,8 @@ static void VS_CC debicubic_create(const VSMap *in, VSMap *out, void *userData, 
     d.vi_dst = vsapi->getVideoInfo(d.node);
     int err;
 
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS is the only supported input format.");
+    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
+        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -745,8 +743,8 @@ static void VS_CC delanczos_create(const VSMap *in, VSMap *out, void *userData, 
     d.vi_dst = vsapi->getVideoInfo(d.node);
     int err;
 
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS is the only supported input format.");
+    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
+        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -808,8 +806,8 @@ static void VS_CC despline16_create(const VSMap *in, VSMap *out, void *userData,
     d.vi_dst = vsapi->getVideoInfo(d.node);
     int err;
 
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS is the only supported input format.");
+    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
+        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -867,8 +865,8 @@ static void VS_CC despline36_create(const VSMap *in, VSMap *out, void *userData,
     d.vi_dst = vsapi->getVideoInfo(d.node);
     int err;
 
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS is the only supported input format.");
+    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
+        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
         vsapi->freeNode(d.node);
         return;
     }
