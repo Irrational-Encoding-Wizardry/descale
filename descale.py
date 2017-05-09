@@ -28,7 +28,7 @@ def Descale(src, width, height, kernel='bilinear', b=1/3, c=1/3, taps=3, yuv444=
     src_sw = src_f.subsampling_w
     src_sh = src_f.subsampling_h
 
-    descale_filter = get_filter(kernel, b, c, taps)
+    descale_filter = get_filter(kernel, b=b, c=c, taps=taps)
 
     if src_cf == RGB and not gray:
         rgb = descale_filter(to_rgbs(src), width, height)
