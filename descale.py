@@ -28,7 +28,7 @@ def Descale(src, width, height, kernel='bilinear', b=1/3, c=1/3, taps=3, yuv444=
     src_sw = src_f.subsampling_w
     src_sh = src_f.subsampling_h
 
-    descale_filter = get_filter(b, c, taps, kernel)
+    descale_filter = get_filter(kernel, b, c, taps)
 
     if src_cf == RGB and not gray:
         rgb = descale_filter(to_rgbs(src), width, height)
@@ -64,16 +64,13 @@ def get_plane(src, plane):
     return core.std.ShufflePlanes(src, plane, GRAY)
 
 
-def get_filter(b, c, taps, kernel):
-    if kernel.lower() == 'bilinear':
-        return core.descale.Debilinear
-    elif kernel.lower() == 'bicubic':
-        return partial(core.descale.Debicubic, b=b, c=c)
-    elif kernel.lower() == 'lanczos':
-        return partial(core.descale.Delanczos, taps=taps)
-    elif kernel.lower() == 'spline16':
-        return core.descale.Despline16
-    elif kernel.lower() == 'spline36':
-        return core.descale.Despline36
-    else:
-        raise ValueError('Descale: Invalid kernel specified.')
+FILTERS = {
+    'bilinear': (lambda **kwargs: core.descale.Debilinear),
+    'spline16': (lambda **kwargs: core.descale.Despline16),
+    'spline36': (lambda **kwargs: core.descale.Despline36),
+    'bicubic': (lambda b, c, **kwargs: partial(core.descale.Debicubic, b=b, c=c)),
+    'lanczos': (lambda taps, **kwargs: partial(core.descale.Delanczos, taps=taps)),
+}
+
+def get_filter(kernel, **kwargs):
+    return FILTERS[kernel](**kwargs)
