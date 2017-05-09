@@ -1,8 +1,10 @@
 /* 
  * Copyright © 2017 Frechdachs <frechdachs@rekt.cc>
- * This work is free. You can redistribute it and/or modify it under the
- * terms of the Do What The Fuck You Want To Public License, Version 2,
- * as published by Sam Hocevar. See the COPYING file for more details.
+ * This program is free software. It comes without any warranty, to
+ * the extent permitted by applicable law. You can redistribute it
+ * and/or modify it under the terms of the Do What The Fuck You Want
+ * To Public License, Version 2, as published by Sam Hocevar.
+ * See the COPYING file for more details.
  */
 
 
@@ -100,7 +102,8 @@ void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, std::vector<d
 
 // LDLT decomposition (variant of Cholesky decomposition)
 // Input is only the upper part of a banded symmetrical matrix in compressed form.
-// The input matrix is modified in-place and equals L' in compressed form after decomposition.
+// The input matrix is modified in-place and contains L' and D in compressed form
+// after decomposition. The main diagonal of ones of L' is not saved.
 void banded_ldlt_decomposition(int rows, int bandwidth, std::vector<double> &matrix)
 {
     int c = (bandwidth + 1) / 2;
@@ -645,8 +648,14 @@ static void VS_CC debilinear_create(const VSMap *in, VSMap *out, void *userData,
     if (err)
         d.shift_v = 0;
 
+    if (d.width < 1 || d.height < 1) {
+        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller or equal to input dimension.");
+        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -712,8 +721,14 @@ static void VS_CC debicubic_create(const VSMap *in, VSMap *out, void *userData, 
     if (err)
         d.shift_v = 0;
 
+    if (d.width < 1 || d.height < 1) {
+        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller or equal to input dimension.");
+        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -775,8 +790,20 @@ static void VS_CC delanczos_create(const VSMap *in, VSMap *out, void *userData, 
     if (err)
         d.shift_v = 0;
 
+    if (d.width < 1 || d.height < 1) {
+        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller or equal to input dimension.");
+        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    if (d.taps < 1) {
+        vsapi->setError(out, "Descale: taps must be bigger than 0.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -834,8 +861,14 @@ static void VS_CC despline16_create(const VSMap *in, VSMap *out, void *userData,
     if (err)
         d.shift_v = 0;
 
+    if (d.width < 1 || d.height < 1) {
+        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller or equal to input dimension.");
+        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -893,8 +926,14 @@ static void VS_CC despline36_create(const VSMap *in, VSMap *out, void *userData,
     if (err)
         d.shift_v = 0;
 
+    if (d.width < 1 || d.height < 1) {
+        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller or equal to input dimension.");
+        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
         vsapi->freeNode(d.node);
         return;
     }
