@@ -10,7 +10,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 #include <vapoursynth/VapourSynth.h>
 #include <vapoursynth/VSHelper.h>
@@ -19,9 +21,8 @@
 struct DescaleData
 {
     VSNodeRef * node;
-    const VSVideoInfo * vi;
-    const VSVideoInfo * vi_dst;
-    int width, height;
+    VSVideoInfo vi;
+    VSVideoInfo vi_dst;
     int bandwidth;
     int taps;
     double b, c;
@@ -52,7 +53,7 @@ typedef enum DescaleMode
 } DescaleMode;
 
 
-std::vector<double> transpose_matrix(int rows, std::vector<double> &matrix)
+static std::vector<double> transpose_matrix(int rows, const std::vector<double> &matrix)
 {
     int columns = matrix.size() / rows;
     std::vector<double> transposed_matrix (matrix.size(), 0);
@@ -66,7 +67,7 @@ std::vector<double> transpose_matrix(int rows, std::vector<double> &matrix)
 }
 
 
-std::vector<double> multiply_sparse_matrices(int rows, std::vector<int> &lidx, std::vector<int> &ridx, std::vector<double> &lm, std::vector<double> &rm)
+static std::vector<double> multiply_sparse_matrices(int rows, const std::vector<int> &lidx, const std::vector<int> &ridx, const std::vector<double> &lm, const std::vector<double> &rm)
 {
     int columns = lm.size() / rows;
     std::vector<double> multiplied (rows * rows, 0);
@@ -87,7 +88,7 @@ std::vector<double> multiply_sparse_matrices(int rows, std::vector<int> &lidx, s
 }
 
 
-void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, std::vector<double> &matrix)
+static void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, std::vector<double> &matrix)
 {
     int c = (bandwidth + 1) / 2;
 
@@ -104,7 +105,7 @@ void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, std::vector<d
 // Input is only the upper part of a banded symmetrical matrix in compressed form.
 // The input matrix is modified in-place and contains L' and D in compressed form
 // after decomposition. The main diagonal of ones of L' is not saved.
-void banded_ldlt_decomposition(int rows, int bandwidth, std::vector<double> &matrix)
+static void banded_ldlt_decomposition(int rows, int bandwidth, std::vector<double> &matrix)
 {
     int c = (bandwidth + 1) / 2;
     // Division by 0 can happen if shift is used
@@ -130,7 +131,7 @@ void banded_ldlt_decomposition(int rows, int bandwidth, std::vector<double> &mat
 }
 
 
-std::vector<double> compress_matrix(int rows, std::vector<int> &lidx, std::vector<int> &ridx, std::vector<double> &matrix)
+static std::vector<double> compress_matrix(int rows, const std::vector<int> &lidx, const std::vector<int> &ridx, const std::vector<double> &matrix)
 {
     int columns = matrix.size() / rows;
     int max = 0;
@@ -151,7 +152,7 @@ std::vector<double> compress_matrix(int rows, std::vector<int> &lidx, std::vecto
 }
 
 
-std::vector<double> compress_symmetric_banded_matrix(int rows, int bandwidth, std::vector<double> &matrix)
+static std::vector<double> compress_symmetric_banded_matrix(int rows, int bandwidth, const std::vector<double> &matrix)
 {
     int c = (bandwidth + 1) / 2;
     std::vector<double> compressed (rows * c, 0);
@@ -175,7 +176,7 @@ std::vector<double> compress_symmetric_banded_matrix(int rows, int bandwidth, st
 }
 
 
-std::vector<double> uncrompress_symmetric_banded_matrix(int rows, int bandwidth, std::vector<double> &matrix)
+static std::vector<double> uncrompress_symmetric_banded_matrix(int rows, int bandwidth, const std::vector<double> &matrix)
 {
     int c = (bandwidth + 1) / 2;
     std::vector<double> uncompressed (rows * rows, 0);
@@ -193,7 +194,7 @@ std::vector<double> uncrompress_symmetric_banded_matrix(int rows, int bandwidth,
 }
 
 
-void extract_compressed_lower_upper_diagonal(int rows, int bandwidth, std::vector<double> &lower, std::vector<double> &upper, std::vector<float> &compressed_lower, std::vector<float> &compressed_upper, std::vector<float> &diagonal)
+static void extract_compressed_lower_upper_diagonal(int rows, int bandwidth, const std::vector<double> &lower, const std::vector<double> &upper, std::vector<float> &compressed_lower, std::vector<float> &compressed_upper, std::vector<float> &diagonal)
 {
     int columns = lower.size() / rows;
     int c = (bandwidth + 1) / 2;
@@ -221,28 +222,28 @@ void extract_compressed_lower_upper_diagonal(int rows, int bandwidth, std::vecto
 }
 
 
-constexpr double PI = 3.14159265358979323846;
+static constexpr double PI = 3.14159265358979323846;
 
 
-double sinc(double x)
+static double sinc(double x)
 {
     return x == 0.0 ? 1.0 : std::sin(x * PI) / (x * PI);
 }
 
 
-double square(double x)
+static double square(double x)
 {
     return x * x;
 }
 
 
-double cube(double x)
+static double cube(double x)
 {
     return x * x * x;
 }
 
 
-double calculate_weight(DescaleMode mode, int support, double distance, double b, double c)
+static double calculate_weight(DescaleMode mode, int support, double distance, double b, double c)
 {
     distance = std::abs(distance);
 
@@ -289,7 +290,7 @@ double calculate_weight(DescaleMode mode, int support, double distance, double b
 
 
 // Stolen from zimg
-double round_halfup(double x) noexcept
+static double round_halfup(double x) noexcept
 {
     /* When rounding on the pixel grid, the invariant
      *   round(x - 1) == round(x) - 1
@@ -305,7 +306,7 @@ double round_halfup(double x) noexcept
 
 // Most of this is taken from zimg 
 // https://github.com/sekrit-twc/zimg/blob/ce27c27f2147fbb28e417fbf19a95d3cf5d68f4f/src/zimg/resize/filter.cpp#L227
-std::vector<double> scaling_weights(DescaleMode mode, int support, int src_dim, int dst_dim, double b, double c, double shift)
+static std::vector<double> scaling_weights(DescaleMode mode, int support, int src_dim, int dst_dim, double b, double c, double shift)
 {
     double ratio = static_cast<double>(dst_dim) / src_dim;
     std::vector<double> weights (src_dim * dst_dim, 0);
@@ -341,13 +342,12 @@ std::vector<double> scaling_weights(DescaleMode mode, int support, int src_dim, 
 
 
 // Solve A' A x = A' b for x
-static void process_plane_h(int width, int current_height, int &current_width, int &bandwidth, std::vector<int> &weights_left_idx, std::vector<int> &weights_right_idx, std::vector<float> &weights,
-                            std::vector<float> &lower, std::vector<float> &upper, std::vector<float> &diagonal, const int src_stride, const int dst_stride, const float *srcp, float *dstp)
+static void process_plane_h(int width, int current_height, int &current_width, int bandwidth, const std::vector<int> &weights_left_idx, const std::vector<int> &weights_right_idx, const std::vector<float> &weights,
+                            const std::vector<float> &lower, const std::vector<float> &upper, const std::vector<float> &diagonal, const int src_stride, const int dst_stride, const float *srcp, float *dstp)
 {
     int c = (bandwidth + 1) / 2;
     std::vector<float> line (current_width);
     int columns = weights.size() / width;
-    float * orig_dstp = dstp;
     for (int i = 0; i < current_height; ++i) {
 
         // Solve LD y = A' b
@@ -382,13 +382,12 @@ static void process_plane_h(int width, int current_height, int &current_width, i
         dstp += dst_stride;
     }
     current_width = width;
-    dstp = orig_dstp;
 }
 
 
 // Solve A' A x = A' b for x
-static void process_plane_v(int height, int current_width, int &current_height, int &bandwidth, std::vector<int> &weights_left_idx, std::vector<int> &weights_right_idx, std::vector<float> &weights,
-                            std::vector<float> &lower, std::vector<float> &upper, std::vector<float> &diagonal, const int src_stride, const int dst_stride, const float *srcp, float *dstp)
+static void process_plane_v(int height, int current_width, int &current_height, int bandwidth, const std::vector<int> &weights_left_idx, const std::vector<int> &weights_right_idx, const std::vector<float> &weights,
+                            const std::vector<float> &lower, const std::vector<float> &upper, const std::vector<float> &diagonal, const int src_stride, const int dst_stride, const float *srcp, float *dstp)
 {
     int c = (bandwidth + 1) / 2;
     int columns = weights.size() / height;
@@ -435,12 +434,12 @@ static const VSFrameRef *VS_CC descale_get_frame(int n, int activationReason, vo
 
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef * src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat * fi = d->vi->format;
+        const VSFormat * fi = d->vi.format;
 
-        VSFrameRef * intermediate = vsapi->newVideoFrame(fi, d->width, d->vi->height, src, core);
-        VSFrameRef * dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
+        VSFrameRef * intermediate = vsapi->newVideoFrame(fi, d->vi_dst.width, d->vi.height, nullptr, core);
+        VSFrameRef * dst = vsapi->newVideoFrame(fi, d->vi_dst.width, d->vi_dst.height, src, core);
 
-        for (int plane = 0; plane < d->vi->format->numPlanes; ++plane) {
+        for (int plane = 0; plane < d->vi.format->numPlanes; ++plane) {
             int current_width = vsapi->getFrameWidth(src, plane);
             int current_height = vsapi->getFrameHeight(src, plane);
 
@@ -451,40 +450,40 @@ static const VSFrameRef *VS_CC descale_get_frame(int n, int activationReason, vo
                 const int intermediate_stride = vsapi->getStride(intermediate, plane) / sizeof(float);
                 float * VS_RESTRICT intermediatep = reinterpret_cast<float *>(vsapi->getWritePtr(intermediate, plane));
 
-                process_plane_h(d->width, current_height, current_width, d->bandwidth, d->weights_h_left_idx, d->weights_h_right_idx, d->weights_h,
+                process_plane_h(d->vi_dst.width, current_height, current_width, d->bandwidth, d->weights_h_left_idx, d->weights_h_right_idx, d->weights_h,
                                 d->lower_h, d->upper_h, d->diagonal_h, src_stride, intermediate_stride, srcp, intermediatep);
 
 
                 const int dst_stride = vsapi->getStride(dst, plane) / sizeof(float);
                 float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
 
-                process_plane_v(d->height, current_width, current_height, d->bandwidth, d->weights_v_left_idx, d->weights_v_right_idx, d->weights_v,
+                process_plane_v(d->vi_dst.height, current_width, current_height, d->bandwidth, d->weights_v_left_idx, d->weights_v_right_idx, d->weights_v,
                                 d->lower_v, d->upper_v, d->diagonal_v, intermediate_stride, dst_stride, intermediatep, dstp);
 
             } else if (d->process_h) {
                 const int dst_stride = vsapi->getStride(dst, plane) / sizeof(float);
                 float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
 
-                process_plane_h(d->width, current_height, current_width, d->bandwidth, d->weights_h_left_idx, d->weights_h_right_idx, d->weights_h,
+                process_plane_h(d->vi_dst.width, current_height, current_width, d->bandwidth, d->weights_h_left_idx, d->weights_h_right_idx, d->weights_h,
                                 d->lower_h, d->upper_h, d->diagonal_h, src_stride, dst_stride, srcp, dstp);
 
             } else if (d->process_v) {
                 const int dst_stride = vsapi->getStride(dst, plane) / sizeof(float);
                 float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
 
-                process_plane_v(d->height, current_width, current_height, d->bandwidth, d->weights_v_left_idx, d->weights_v_right_idx, d->weights_v,
+                process_plane_v(d->vi_dst.height, current_width, current_height, d->bandwidth, d->weights_v_left_idx, d->weights_v_right_idx, d->weights_v,
                                 d->lower_v, d->upper_v, d->diagonal_v, src_stride, dst_stride, srcp, dstp);
             }
         }
 
+        vsapi->freeFrame(intermediate);
+
         if (d->process_h || d->process_v) {
             vsapi->freeFrame(src);
-            vsapi->freeFrame(intermediate);
 
             return dst;
 
         } else {
-            vsapi->freeFrame(intermediate);
             vsapi->freeFrame(dst);
 
             return src;
@@ -498,11 +497,9 @@ static const VSFrameRef *VS_CC descale_get_frame(int n, int activationReason, vo
 static void VS_CC descale_init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
 {
     DescaleData * d = static_cast<DescaleData *>(*instanceData);
-    VSVideoInfo vi_dst = *d->vi_dst;
-    vi_dst.width = d->width;
-    vi_dst.height = d->height;
-    vsapi->setVideoInfo(&vi_dst, 1, node);
+    vsapi->setVideoInfo(&d->vi_dst, 1, node);
 }
+
 
 static void VS_CC descale_free(void *instanceData, VSCore *core, const VSAPI *vsapi)
 {
@@ -513,49 +510,136 @@ static void VS_CC descale_free(void *instanceData, VSCore *core, const VSAPI *vs
     delete d;
 }
 
-void descale_create(DescaleMode mode, int support, DescaleData &d)
-{   
-    if (d.process_h) {
-        std::vector<double> weights = scaling_weights(mode, support, d.width, d.vi->width, d.b, d.c, d.shift_h);
-        std::vector<double> transposed_weights = transpose_matrix(d.vi->width, weights);
 
-        d.weights_h_left_idx.resize(d.width);
-        d.weights_h_right_idx.resize(d.width);
-        for (int i = 0; i < d.width; ++i) {
-            for (int j = 0; j < d.vi->width; ++j) {
-                if (transposed_weights[i * d.vi->width + j] != 0.0) {
+static void VS_CC descale_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
+{
+    DescaleMode mode = static_cast<DescaleMode>(reinterpret_cast<std::uintptr_t>(userData));
+
+    DescaleData d{};
+
+    d.node = vsapi->propGetNode(in, "src", 0, nullptr);
+    d.vi = *vsapi->getVideoInfo(d.node);
+    d.vi_dst = *vsapi->getVideoInfo(d.node);
+    int err;
+
+    if (!isConstantFormat(&d.vi) || (d.vi.format->id != pfGrayS && d.vi.format->id != pfRGBS && d.vi.format->id != pfYUV444PS)) {
+        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    d.vi_dst.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, nullptr));
+
+    d.vi_dst.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, nullptr));
+
+    d.shift_h = vsapi->propGetFloat(in, "src_left", 0, &err);
+    if (err)
+        d.shift_h = 0;
+
+    d.shift_v = vsapi->propGetFloat(in, "src_top", 0, &err);
+    if (err)
+        d.shift_v = 0;
+
+    if (d.vi_dst.width < 1 || d.vi_dst.height < 1) {
+        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    if (d.vi_dst.width > d.vi.width || d.vi_dst.height > d.vi.height) {
+        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    d.process_h = (d.vi_dst.width == d.vi.width) ? false : true;
+    d.process_v = (d.vi_dst.height == d.vi.height) ? false : true;
+
+    int support;
+    std::string funcname;
+
+    if (mode == bilinear) {
+        support = 1;
+        funcname = "Debilinear";
+    
+    } else if (mode == bicubic) {
+        d.b = vsapi->propGetFloat(in, "b", 0, &err);
+        if (err)
+            d.b = static_cast<double>(1) / 3;
+
+        d.c = vsapi->propGetFloat(in, "c", 0, &err);
+        if (err)
+            d.c = static_cast<double>(1) / 3;
+
+        support = 2;
+        funcname = "Debicubic";
+
+    } else if (mode == lanczos) {
+        d.taps = int64ToIntS(vsapi->propGetInt(in, "taps", 0, &err));
+        if (err)
+            d.taps = 3;
+
+        if (d.taps < 1) {
+            vsapi->setError(out, "Descale: taps must be bigger than 0.");
+            vsapi->freeNode(d.node);
+            return;
+        }
+
+        support = d.taps;
+        funcname = "Delanczos";
+
+    } else if (mode == spline16) {
+        support = 2;
+        funcname = "Despline16";
+
+    } else if (mode == spline36) {
+        support = 3;
+        funcname = "Despline36";
+    }
+
+    d.bandwidth = support * 4 - 1;
+
+    if (d.process_h) {
+        std::vector<double> weights = scaling_weights(mode, support, d.vi_dst.width, d.vi.width, d.b, d.c, d.shift_h);
+        std::vector<double> transposed_weights = transpose_matrix(d.vi.width, weights);
+
+        d.weights_h_left_idx.resize(d.vi_dst.width);
+        d.weights_h_right_idx.resize(d.vi_dst.width);
+        for (int i = 0; i < d.vi_dst.width; ++i) {
+            for (int j = 0; j < d.vi.width; ++j) {
+                if (transposed_weights[i * d.vi.width + j] != 0.0) {
                     d.weights_h_left_idx[i] = j;
                     break;
                 }
             }
-            for (int j = d.vi->width - 1; j >= 0; --j) {
-                if (transposed_weights[i * d.vi->width + j] != 0.0) {
+            for (int j = d.vi.width - 1; j >= 0; --j) {
+                if (transposed_weights[i * d.vi.width + j] != 0.0) {
                     d.weights_h_right_idx[i] = j + 1;
                     break;
                 }
             }
         }
 
-        std::vector<double> multiplied_weights = multiply_sparse_matrices(d.width, d.weights_h_left_idx, d.weights_h_right_idx, transposed_weights, weights);
+        std::vector<double> multiplied_weights = multiply_sparse_matrices(d.vi_dst.width, d.weights_h_left_idx, d.weights_h_right_idx, transposed_weights, weights);
         
-        std::vector<double> upper (d.width * d.width, 0);
-        upper = compress_symmetric_banded_matrix(d.width, d.bandwidth, multiplied_weights);
-        banded_ldlt_decomposition(d.width, d.bandwidth, upper);
-        upper = uncrompress_symmetric_banded_matrix(d.width, d.bandwidth, upper);
-        std::vector<double> lower = transpose_matrix(d.width, upper);
-        multiply_banded_matrix_with_diagonal(d.width, d.bandwidth, lower);
+        std::vector<double> upper (d.vi_dst.width * d.vi_dst.width, 0);
+        upper = compress_symmetric_banded_matrix(d.vi_dst.width, d.bandwidth, multiplied_weights);
+        banded_ldlt_decomposition(d.vi_dst.width, d.bandwidth, upper);
+        upper = uncrompress_symmetric_banded_matrix(d.vi_dst.width, d.bandwidth, upper);
+        std::vector<double> lower = transpose_matrix(d.vi_dst.width, upper);
+        multiply_banded_matrix_with_diagonal(d.vi_dst.width, d.bandwidth, lower);
 
-        transposed_weights = compress_matrix(d.width, d.weights_h_left_idx, d.weights_h_right_idx, transposed_weights);
+        transposed_weights = compress_matrix(d.vi_dst.width, d.weights_h_left_idx, d.weights_h_right_idx, transposed_weights);
         
-        int compressed_columns = transposed_weights.size() / d.width;
-        d.weights_h.resize(d.width * compressed_columns, 0);
-        d.diagonal_h.resize(d.width, 0);
-        d.lower_h.resize(d.width * ((d.bandwidth + 1) / 2 - 1), 0);
-        d.upper_h.resize(d.width * ((d.bandwidth + 1) / 2 - 1), 0);
+        int compressed_columns = transposed_weights.size() / d.vi_dst.width;
+        d.weights_h.resize(d.vi_dst.width * compressed_columns, 0);
+        d.diagonal_h.resize(d.vi_dst.width, 0);
+        d.lower_h.resize(d.vi_dst.width * ((d.bandwidth + 1) / 2 - 1), 0);
+        d.upper_h.resize(d.vi_dst.width * ((d.bandwidth + 1) / 2 - 1), 0);
 
-        extract_compressed_lower_upper_diagonal(d.width, d.bandwidth, lower, upper, d.lower_h, d.upper_h, d.diagonal_h);
+        extract_compressed_lower_upper_diagonal(d.vi_dst.width, d.bandwidth, lower, upper, d.lower_h, d.upper_h, d.diagonal_h);
 
-        for (int i = 0; i < d.width; ++i) {
+        for (int i = 0; i < d.vi_dst.width; ++i) {
             for (int j = 0; j < compressed_columns; ++j) {
                 d.weights_h[i * compressed_columns + j] = static_cast<float>(transposed_weights[i * compressed_columns + j]);
             }
@@ -563,403 +647,101 @@ void descale_create(DescaleMode mode, int support, DescaleData &d)
     }
 
     if (d.process_v) {
-        std::vector<double> weights = scaling_weights(mode, support, d.height, d.vi->height, d.b, d.c, d.shift_v);
-        std::vector<double> transposed_weights = transpose_matrix(d.vi->height, weights);
+        std::vector<double> weights = scaling_weights(mode, support, d.vi_dst.height, d.vi.height, d.b, d.c, d.shift_v);
+        std::vector<double> transposed_weights = transpose_matrix(d.vi.height, weights);
 
-        d.weights_v_left_idx.resize(d.height);
-        d.weights_v_right_idx.resize(d.height);
-        for (int i = 0; i < d.height; ++i) {
-            for (int j = 0; j < d.vi->height; ++j) {
-                if (transposed_weights[i * d.vi->height + j] != 0.0) {
+        d.weights_v_left_idx.resize(d.vi_dst.height);
+        d.weights_v_right_idx.resize(d.vi_dst.height);
+        for (int i = 0; i < d.vi_dst.height; ++i) {
+            for (int j = 0; j < d.vi.height; ++j) {
+                if (transposed_weights[i * d.vi.height + j] != 0.0) {
                     d.weights_v_left_idx[i] = j;
                     break;
                 }
             }
-            for (int j = d.vi->height - 1; j >= 0; --j) {
-                if (transposed_weights[i * d.vi->height + j] != 0.0) {
+            for (int j = d.vi.height - 1; j >= 0; --j) {
+                if (transposed_weights[i * d.vi.height + j] != 0.0) {
                     d.weights_v_right_idx[i] = j + 1;
                     break;
                 }
             }
         }
 
-        std::vector<double> multiplied_weights = multiply_sparse_matrices(d.height, d.weights_v_left_idx, d.weights_v_right_idx, transposed_weights, weights);
+        std::vector<double> multiplied_weights = multiply_sparse_matrices(d.vi_dst.height, d.weights_v_left_idx, d.weights_v_right_idx, transposed_weights, weights);
         
-        std::vector<double> upper (d.height * d.height, 0);
-        upper = compress_symmetric_banded_matrix(d.height, d.bandwidth, multiplied_weights);
-        banded_ldlt_decomposition(d.height, d.bandwidth, upper);
-        upper = uncrompress_symmetric_banded_matrix(d.height, d.bandwidth, upper);
-        std::vector<double> lower = transpose_matrix(d.height, upper);
-        multiply_banded_matrix_with_diagonal(d.height, d.bandwidth, lower);
+        std::vector<double> upper (d.vi_dst.height * d.vi_dst.height, 0);
+        upper = compress_symmetric_banded_matrix(d.vi_dst.height, d.bandwidth, multiplied_weights);
+        banded_ldlt_decomposition(d.vi_dst.height, d.bandwidth, upper);
+        upper = uncrompress_symmetric_banded_matrix(d.vi_dst.height, d.bandwidth, upper);
+        std::vector<double> lower = transpose_matrix(d.vi_dst.height, upper);
+        multiply_banded_matrix_with_diagonal(d.vi_dst.height, d.bandwidth, lower);
 
-        transposed_weights = compress_matrix(d.height, d.weights_v_left_idx, d.weights_v_right_idx, transposed_weights);
+        transposed_weights = compress_matrix(d.vi_dst.height, d.weights_v_left_idx, d.weights_v_right_idx, transposed_weights);
         
-        int compressed_columns = transposed_weights.size() / d.height;
-        d.weights_v.resize(d.height * compressed_columns, 0);
-        d.diagonal_v.resize(d.height, 0);
-        d.lower_v.resize(d.height * ((d.bandwidth + 1) / 2 - 1), 0);
-        d.upper_v.resize(d.height * ((d.bandwidth + 1) / 2 - 1), 0);
+        int compressed_columns = transposed_weights.size() / d.vi_dst.height;
+        d.weights_v.resize(d.vi_dst.height * compressed_columns, 0);
+        d.diagonal_v.resize(d.vi_dst.height, 0);
+        d.lower_v.resize(d.vi_dst.height * ((d.bandwidth + 1) / 2 - 1), 0);
+        d.upper_v.resize(d.vi_dst.height * ((d.bandwidth + 1) / 2 - 1), 0);
 
-        extract_compressed_lower_upper_diagonal(d.height, d.bandwidth, lower, upper, d.lower_v, d.upper_v, d.diagonal_v);
+        extract_compressed_lower_upper_diagonal(d.vi_dst.height, d.bandwidth, lower, upper, d.lower_v, d.upper_v, d.diagonal_v);
 
-        for (int i = 0; i < d.height; ++i) {
+        for (int i = 0; i < d.vi_dst.height; ++i) {
             for (int j = 0; j < compressed_columns; ++j) {
                 d.weights_v[i * compressed_columns + j] = static_cast<float>(transposed_weights[i * compressed_columns + j]);
             }
         }
     }
-}
-
-
-static void VS_CC debilinear_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
-{
-    DescaleData d{};
-
-    d.node = vsapi->propGetNode(in, "src", 0, nullptr);
-    d.vi = vsapi->getVideoInfo(d.node);
-    d.vi_dst = vsapi->getVideoInfo(d.node);
-    int err;
-
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify width.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify height.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.shift_h = vsapi->propGetFloat(in, "src_left", 0, &err);
-    if (err)
-        d.shift_h = 0;
-
-    d.shift_v = vsapi->propGetFloat(in, "src_top", 0, &err);
-    if (err)
-        d.shift_v = 0;
-
-    if (d.width < 1 || d.height < 1) {
-        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.process_h = (d.width == d.vi->width) ? false : true;
-    d.process_v = (d.height == d.vi->height) ? false : true;
-
-    DescaleMode mode = bilinear;
-    int support = 1;
-    d.bandwidth = support * 4 - 1;
-
-    descale_create(mode, support, d);
 
     DescaleData * data = new DescaleData{ d };
-
-    vsapi->createFilter(in, out, "Debilinear", descale_init, descale_get_frame, descale_free, fmParallel, 0, data, core);
-
-}
-
-
-static void VS_CC debicubic_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
-{
-    DescaleData d{};
-
-    d.node = vsapi->propGetNode(in, "src", 0, nullptr);
-    d.vi = vsapi->getVideoInfo(d.node);
-    d.vi_dst = vsapi->getVideoInfo(d.node);
-    int err;
-
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify width.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify height.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.b = vsapi->propGetFloat(in, "b", 0, &err);
-    if (err)
-        d.b = static_cast<double>(1) / 3;
-
-    d.c = vsapi->propGetFloat(in, "c", 0, &err);
-    if (err)
-        d.c = static_cast<double>(1) / 3;
-
-    d.shift_h = vsapi->propGetFloat(in, "src_left", 0, &err);
-    if (err)
-        d.shift_h = 0;
-
-    d.shift_v = vsapi->propGetFloat(in, "src_top", 0, &err);
-    if (err)
-        d.shift_v = 0;
-
-    if (d.width < 1 || d.height < 1) {
-        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.process_h = (d.width == d.vi->width) ? false : true;
-    d.process_v = (d.height == d.vi->height) ? false : true;
-
-    DescaleMode mode = bicubic;
-    int support = 2;
-    d.bandwidth = support * 4 - 1;
-
-    descale_create(mode, support, d);
-
-    DescaleData * data = new DescaleData{ d };
-
-    vsapi->createFilter(in, out, "Debicubic", descale_init, descale_get_frame, descale_free, fmParallel, 0, data, core);
-
-}
-
-
-static void VS_CC delanczos_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
-{
-    DescaleData d{};
-
-    d.node = vsapi->propGetNode(in, "src", 0, nullptr);
-    d.vi = vsapi->getVideoInfo(d.node);
-    d.vi_dst = vsapi->getVideoInfo(d.node);
-    int err;
-
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify width.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify height.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.taps = int64ToIntS(vsapi->propGetInt(in, "taps", 0, &err));
-    if (err)
-        d.taps = 3;
-
-    d.shift_h = vsapi->propGetFloat(in, "src_left", 0, &err);
-    if (err)
-        d.shift_h = 0;
-
-    d.shift_v = vsapi->propGetFloat(in, "src_top", 0, &err);
-    if (err)
-        d.shift_v = 0;
-
-    if (d.width < 1 || d.height < 1) {
-        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    if (d.taps < 1) {
-        vsapi->setError(out, "Descale: taps must be bigger than 0.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.process_h = (d.width == d.vi->width) ? false : true;
-    d.process_v = (d.height == d.vi->height) ? false : true;
-
-    DescaleMode mode = lanczos;
-    int support = d.taps;
-    d.bandwidth = support * 4 - 1;
-
-    descale_create(mode, support, d);
-
-    DescaleData * data = new DescaleData{ d };
-
-    vsapi->createFilter(in, out, "Delanczos", descale_init, descale_get_frame, descale_free, fmParallel, 0, data, core);
-
-}
-
-
-static void VS_CC despline16_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
-{
-    DescaleData d{};
-
-    d.node = vsapi->propGetNode(in, "src", 0, nullptr);
-    d.vi = vsapi->getVideoInfo(d.node);
-    d.vi_dst = vsapi->getVideoInfo(d.node);
-    int err;
-
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify width.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify height.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.shift_h = vsapi->propGetFloat(in, "src_left", 0, &err);
-    if (err)
-        d.shift_h = 0;
-
-    d.shift_v = vsapi->propGetFloat(in, "src_top", 0, &err);
-    if (err)
-        d.shift_v = 0;
-
-    if (d.width < 1 || d.height < 1) {
-        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.process_h = (d.width == d.vi->width) ? false : true;
-    d.process_v = (d.height == d.vi->height) ? false : true;
-
-    DescaleMode mode = spline16;
-    int support = 2;
-    d.bandwidth = support * 4 - 1;
-
-    descale_create(mode, support, d);
-
-    DescaleData * data = new DescaleData{ d };
-
-    vsapi->createFilter(in, out, "Despline16", descale_init, descale_get_frame, descale_free, fmParallel, 0, data, core);
-
-}
-
-
-static void VS_CC despline36_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
-{
-    DescaleData d{};
-
-    d.node = vsapi->propGetNode(in, "src", 0, nullptr);
-    d.vi = vsapi->getVideoInfo(d.node);
-    d.vi_dst = vsapi->getVideoInfo(d.node);
-    int err;
-
-    if (!isConstantFormat(d.vi) || (d.vi->format->id != pfGrayS && d.vi->format->id != pfRGBS && d.vi->format->id != pfYUV444PS)) {
-        vsapi->setError(out, "Descale: Constant format GrayS, RGBS, and YUV444PS are the only supported input formats.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify width.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, &err));
-    if (err) {
-        vsapi->setError(out, "Descale: Please specify height.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.shift_h = vsapi->propGetFloat(in, "src_left", 0, &err);
-    if (err)
-        d.shift_h = 0;
-
-    d.shift_v = vsapi->propGetFloat(in, "src_top", 0, &err);
-    if (err)
-        d.shift_v = 0;
-
-    if (d.width < 1 || d.height < 1) {
-        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    if (d.width > d.vi->width || d.height > d.vi->height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.process_h = (d.width == d.vi->width) ? false : true;
-    d.process_v = (d.height == d.vi->height) ? false : true;
-
-    DescaleMode mode = spline36;
-    int support = 3;
-    d.bandwidth = support * 4 - 1;
-
-    descale_create(mode, support, d);
-
-    DescaleData * data = new DescaleData{ d };
-
-    vsapi->createFilter(in, out, "Despline36", descale_init, descale_get_frame, descale_free, fmParallel, 0, data, core);
-
+    vsapi->createFilter(in, out, funcname.c_str(), descale_init, descale_get_frame, descale_free, fmParallel, 0, data, core);
 }
 
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
     configFunc("tegaf.asi.xe", "descale", "Undo linear interpolation", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Debilinear", "src:clip;width:int;height:int;src_left:float:opt;src_top:float:opt", debilinear_create, nullptr, plugin);
-    registerFunc("Debicubic", "src:clip;width:int;height:int;b:float:opt;c:float:opt;src_left:float:opt;src_top:float:opt", debicubic_create, nullptr, plugin);
-    registerFunc("Delanczos", "src:clip;width:int;height:int;taps:int:opt;src_left:float:opt;src_top:float:opt", delanczos_create, nullptr, plugin);
-    registerFunc("Despline36", "src:clip;width:int;height:int;src_left:float:opt;src_top:float:opt", despline36_create, nullptr, plugin);
-    registerFunc("Despline16", "src:clip;width:int;height:int;src_left:float:opt;src_top:float:opt", despline16_create, nullptr, plugin);
+
+    registerFunc("Debilinear",
+            "src:clip;"
+            "width:int;"
+            "height:int;"
+            "src_left:float:opt;"
+            "src_top:float:opt",
+            descale_create, reinterpret_cast<void *>(bilinear), plugin);
+
+    registerFunc("Debicubic",
+            "src:clip;"
+            "width:int;"
+            "height:int;"
+            "b:float:opt;"
+            "c:float:opt;"
+            "src_left:float:opt;"
+            "src_top:float:opt",
+            descale_create, reinterpret_cast<void *>(bicubic), plugin);
+
+    registerFunc("Delanczos",
+            "src:clip;"
+            "width:int;"
+            "height:int;"
+            "taps:int:opt;"
+            "src_left:float:opt;"
+            "src_top:float:opt",
+            descale_create, reinterpret_cast<void *>(lanczos), plugin);
+
+    registerFunc("Despline16",
+            "src:clip;"
+            "width:int;"
+            "height:int;"
+            "src_left:float:opt;"
+            "src_top:float:opt",
+            descale_create, reinterpret_cast<void *>(spline16), plugin);
+
+    registerFunc("Despline36",
+            "src:clip;"
+            "width:int;"
+            "height:int;"
+            "src_left:float:opt;"
+            "src_top:float:opt",
+            descale_create, reinterpret_cast<void *>(spline36), plugin);
 }
