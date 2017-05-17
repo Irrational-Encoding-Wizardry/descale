@@ -346,7 +346,6 @@ static void process_plane_h(int width, int current_height, int &current_width, i
                             const std::vector<float> &lower, const std::vector<float> &upper, const std::vector<float> &diagonal, const int src_stride, const int dst_stride, const float *srcp, float *dstp)
 {
     int c = (bandwidth + 1) / 2;
-    std::vector<float> line (current_width);
     int columns = weights.size() / width;
     for (int i = 0; i < current_height; ++i) {
 
