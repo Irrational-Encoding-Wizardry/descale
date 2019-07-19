@@ -551,8 +551,8 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    d.process_h = (d.vi_dst.width == d.vi.width) ? false : true;
-    d.process_v = (d.vi_dst.height == d.vi.height) ? false : true;
+    d.process_h = (d.vi_dst.width == d.vi.width && d.shift_h == 0) ? false : true;
+    d.process_v = (d.vi_dst.height == d.vi.height && d.shift_v == 0) ? false : true;
 
     int support;
     std::string funcname;
