@@ -10,24 +10,26 @@ The included python wrapper supports YUV (every subsampling), Gray, and RGB of e
 ```
 descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0)
 
-descale.Debicubic(clip src, int width, int height, float b=1/3, float c=1/3, float src_left=0.0, float src_top=0.0)
+descale.Debicubic(clip src, int width, int height, float b=0.0, float c=0.5, float src_left=0.0, float src_top=0.0)
 
 descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0)
 
 descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0)
 
 descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0)
+
+descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0)
 ```
 
 ## How does this work?
 
 Resampling can be described as `A x = b`.
 
-A is an n x m matrix with m being the input dimension and n the output dimension. x is the original vector with m elements, b is the vector after resampling with n elements. We want to solve this equation for x.
+A is an n x m matrix with `m` being the input dimension and `n` the output dimension. `x` is the original vector with `m` elements, `b` is the vector after resampling with `n` elements. We want to solve this equation for `x`.
 
 To do this, we extend the equation with the transpose of A: `A' A x = A' b`.
 
-`A' A` is now a banded symmetrical m x m matrix and `A' b` is a vector with m elements.
+`A' A` is now a banded symmetrical m x m matrix and `A' b` is a vector with `m` elements.
 
 This enables us to use LDLT decomposition on `A' A` to get `LD L' = A' A`. LD and L are both triangular matrices.
 
@@ -40,10 +42,10 @@ We now have the original vector `x`.
 
 ### Linux
 ```
-g++ -std=c++11 -shared -fPIC -O2 descale.cpp -o libdescale.so
+gcc -std=c99 -shared -fPIC -O2 -march=native descale.c -o libdescale.so
 ```
 
 ### Cross-compilation for Windows
 ```
-x86_64-w64-mingw32-g++ -std=c++11 -shared -fPIC -O2 descale.cpp -static-libgcc -static-libstdc++ -Wl,-Bstatic -lstdc++ -lpthread -Wl,-Bdynamic -s -o libdescale.dll
+x86_64-w64-mingw32-gcc -std=c99 -shared -fPIC -O2 -march=native descale.c -s -o libdescale.dll
 ```

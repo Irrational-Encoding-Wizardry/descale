@@ -7,7 +7,7 @@ from functools import partial
 def Debilinear(src, width, height, yuv444=False, gray=False, chromaloc=None):
     return Descale(src, width, height, kernel='bilinear', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
-def Debicubic(src, width, height, b=1/3, c=1/3, yuv444=False, gray=False, chromaloc=None):
+def Debicubic(src, width, height, b=0.0, c=0.5, yuv444=False, gray=False, chromaloc=None):
     return Descale(src, width, height, kernel='bicubic', b=b, c=c, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Delanczos(src, width, height, taps=3, yuv444=False, gray=False, chromaloc=None):
@@ -19,8 +19,11 @@ def Despline16(src, width, height, yuv444=False, gray=False, chromaloc=None):
 def Despline36(src, width, height, yuv444=False, gray=False, chromaloc=None):
     return Descale(src, width, height, kernel='spline36', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
+def Despline64(src, width, height, yuv444=False, gray=False, chromaloc=None):
+    return Descale(src, width, height, kernel='spline64', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
-def Descale(src, width, height, kernel='bilinear', b=1/3, c=1/3, taps=3, yuv444=False, gray=False, chromaloc=None):
+
+def Descale(src, width, height, kernel='bilinear', b=0.0, c=0.5, taps=3, yuv444=False, gray=False, chromaloc=None):
     src_f = src.format
     src_cf = src_f.color_family
     src_st = src_f.sample_type
@@ -65,15 +68,18 @@ def get_plane(src, plane):
 
 
 def get_filter(b, c, taps, kernel):
-    if kernel.lower() == 'bilinear':
+    kernel = kernel.lower()
+    if kernel == 'bilinear':
         return core.descale.Debilinear
-    elif kernel.lower() == 'bicubic':
+    elif kernel == 'bicubic':
         return partial(core.descale.Debicubic, b=b, c=c)
-    elif kernel.lower() == 'lanczos':
+    elif kernel == 'lanczos':
         return partial(core.descale.Delanczos, taps=taps)
-    elif kernel.lower() == 'spline16':
+    elif kernel == 'spline16':
         return core.descale.Despline16
-    elif kernel.lower() == 'spline36':
+    elif kernel == 'spline36':
         return core.descale.Despline36
+    elif kernel == 'spline64':
+        return core.descale.Despline64
     else:
         raise ValueError('Descale: Invalid kernel specified.')
