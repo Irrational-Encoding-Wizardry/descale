@@ -436,22 +436,21 @@ static void process_line8_h_b3_avx2(int width, int current_height, int *current_
 
 #undef MATMULT
 
-#define SOLVEF(x, a0, lo, di, x_last, j, m)\
+#define SOLVEF(x, lo, di, x_last, j, m)\
         lo = _mm256_set1_ps(lower[j + m]);\
-        a0 = _mm256_mul_ps(lo, x_last);\
-        x = _mm256_sub_ps(x, a0);\
+        x = _mm256_fnmadd_ps(lo, x_last, x);\
         di = _mm256_set1_ps(diagonal[j + m]);\
         x = _mm256_mul_ps(x, di);
 
         // Solve LD y = A' b
-        SOLVEF(x0, a0, lo, di, x_last, j, 0);
-        SOLVEF(x1, a0, lo, di, x0, j, 1);
-        SOLVEF(x2, a0, lo, di, x1, j, 2);
-        SOLVEF(x3, a0, lo, di, x2, j, 3);
-        SOLVEF(x4, a0, lo, di, x3, j, 4);
-        SOLVEF(x5, a0, lo, di, x4, j, 5);
-        SOLVEF(x6, a0, lo, di, x5, j, 6);
-        SOLVEF(x7, a0, lo, di, x6, j, 7);
+        SOLVEF(x0, lo, di, x_last, j, 0);
+        SOLVEF(x1, lo, di, x0, j, 1);
+        SOLVEF(x2, lo, di, x1, j, 2);
+        SOLVEF(x3, lo, di, x2, j, 3);
+        SOLVEF(x4, lo, di, x3, j, 4);
+        SOLVEF(x5, lo, di, x4, j, 5);
+        SOLVEF(x6, lo, di, x5, j, 6);
+        SOLVEF(x7, lo, di, x6, j, 7);
 
 #undef SOLVEF
 
@@ -479,19 +478,18 @@ static void process_line8_h_b3_avx2(int width, int current_height, int *current_
         x6 = _mm256_load_ps(dstp + 6 * dst_stride + j);
         x7 = _mm256_load_ps(dstp + 7 * dst_stride + j);
 
-#define SOLVEB(x, a0, up, x_last, j, m)\
+#define SOLVEB(x, up, x_last, j, m)\
         up = _mm256_set1_ps(upper[j + m]);\
-        a0 = _mm256_mul_ps(up, x_last);\
-        x = _mm256_sub_ps(x, a0);\
+        x = _mm256_fnmadd_ps(up, x_last, x);
 
-        SOLVEB(x7, a0, up, x_last, j, 7);
-        SOLVEB(x6, a0, up, x7, j, 6);
-        SOLVEB(x5, a0, up, x6, j, 5);
-        SOLVEB(x4, a0, up, x5, j, 4);
-        SOLVEB(x3, a0, up, x4, j, 3);
-        SOLVEB(x2, a0, up, x3, j, 2);
-        SOLVEB(x1, a0, up, x2, j, 1);
-        SOLVEB(x0, a0, up, x1, j, 0);
+        SOLVEB(x7, up, x_last, j, 7);
+        SOLVEB(x6, up, x7, j, 6);
+        SOLVEB(x5, up, x6, j, 5);
+        SOLVEB(x4, up, x5, j, 4);
+        SOLVEB(x3, up, x4, j, 3);
+        SOLVEB(x2, up, x3, j, 2);
+        SOLVEB(x1, up, x2, j, 1);
+        SOLVEB(x0, up, x1, j, 0);
 
 #undef SOLVEB
 
@@ -553,38 +551,35 @@ static void process_line8_h_b7_avx2(int width, int current_height, int *current_
 
 #undef MATMULT
 
-#define SOLVEF(x, a0, lo, di, x_last0, x_last1, x_last2, j, m)\
-        a0 = _mm256_setzero_ps();\
+#define SOLVEF(x, lo, di, x_last0, x_last1, x_last2, j, m)\
         if (j + m > 2) {\
             lo = _mm256_set1_ps(lower[0][j + m]);\
-            a0 = _mm256_fmadd_ps(lo, x_last2, a0);\
+            x = _mm256_fnmadd_ps(lo, x_last2, x);\
             lo = _mm256_set1_ps(lower[1][j + m]);\
-            a0 = _mm256_fmadd_ps(lo, x_last1, a0);\
+            x = _mm256_fnmadd_ps(lo, x_last1, x);\
             lo = _mm256_set1_ps(lower[2][j + m]);\
-            a0 = _mm256_fmadd_ps(lo, x_last0, a0);\
+            x = _mm256_fnmadd_ps(lo, x_last0, x);\
         } else if (j + m > 1) {\
             lo = _mm256_set1_ps(lower[0][j + m]);\
-            a0 = _mm256_fmadd_ps(lo, x_last1, a0);\
+            x = _mm256_fnmadd_ps(lo, x_last1, x);\
             lo = _mm256_set1_ps(lower[1][j + m]);\
-            a0 = _mm256_fmadd_ps(lo, x_last0, a0);\
+            x = _mm256_fnmadd_ps(lo, x_last0, x);\
         } else if (j + m > 0) {\
             lo = _mm256_set1_ps(lower[0][j + m]);\
-            a0 = _mm256_fmadd_ps(lo, x_last0, a0);\
+            x = _mm256_fnmadd_ps(lo, x_last0, x);\
         }\
-        x = _mm256_sub_ps(x, a0);\
         di = _mm256_set1_ps(diagonal[j + m]);\
         x = _mm256_mul_ps(x, di);
 
         // Solve LD y = A' b
-        SOLVEF(x0, a0, lo, di, x_last0, x_last1, x_last2, j, 0);
-        SOLVEF(x1, a0, lo, di, x0, x_last0, x_last1, j, 1);
-        SOLVEF(x2, a0, lo, di, x1, x0, x_last0, j, 2);
-        SOLVEF(x3, a0, lo, di, x2, x1, x0, j, 3);
-        SOLVEF(x4, a0, lo, di, x3, x2, x1, j, 4);
-        SOLVEF(x5, a0, lo, di, x4, x3, x2, j, 5);
-        SOLVEF(x6, a0, lo, di, x5, x4, x3, j, 6);
-        SOLVEF(x7, a0, lo, di, x6, x5, x4, j, 7);
-
+        SOLVEF(x0, lo, di, x_last0, x_last1, x_last2, j, 0);
+        SOLVEF(x1, lo, di, x0, x_last0, x_last1, j, 1);
+        SOLVEF(x2, lo, di, x1, x0, x_last0, j, 2);
+        SOLVEF(x3, lo, di, x2, x1, x0, j, 3);
+        SOLVEF(x4, lo, di, x3, x2, x1, j, 4);
+        SOLVEF(x5, lo, di, x4, x3, x2, j, 5);
+        SOLVEF(x6, lo, di, x5, x4, x3, j, 6);
+        SOLVEF(x7, lo, di, x6, x5, x4, j, 7);
 
 #undef SOLVEF
 
@@ -614,34 +609,32 @@ static void process_line8_h_b7_avx2(int width, int current_height, int *current_
         x6 = _mm256_load_ps(dstp + 6 * dst_stride + j);
         x7 = _mm256_load_ps(dstp + 7 * dst_stride + j);
 
-#define SOLVEB(x, a0, up, x_last0, x_last1, x_last2, width, j, m)\
-        a0 = _mm256_setzero_ps();\
+#define SOLVEB(x, up, x_last0, x_last1, x_last2, width, j, m)\
         if (j + m < width - 3) {\
             up = _mm256_set1_ps(upper[0][j + m]);\
-            a0 = _mm256_fmadd_ps(up, x_last0, a0);\
+            x = _mm256_fnmadd_ps(up, x_last0, x);\
             up = _mm256_set1_ps(upper[1][j + m]);\
-            a0 = _mm256_fmadd_ps(up, x_last1, a0);\
+            x = _mm256_fnmadd_ps(up, x_last1, x);\
             up = _mm256_set1_ps(upper[2][j + m]);\
-            a0 = _mm256_fmadd_ps(up, x_last2, a0);\
+            x = _mm256_fnmadd_ps(up, x_last2, x);\
         } else if (j + m < width - 2) {\
             up = _mm256_set1_ps(upper[1][j + m]);\
-            a0 = _mm256_fmadd_ps(up, x_last0, a0);\
+            x = _mm256_fnmadd_ps(up, x_last0, x);\
             up = _mm256_set1_ps(upper[2][j + m]);\
-            a0 = _mm256_fmadd_ps(up, x_last1, a0);\
+            x = _mm256_fnmadd_ps(up, x_last1, x);\
         } else if (j + m < width - 1) {\
             up = _mm256_set1_ps(upper[2][j + m]);\
-            a0 = _mm256_fmadd_ps(up, x_last0, a0);\
-        }\
-        x = _mm256_sub_ps(x, a0);\
+            x = _mm256_fnmadd_ps(up, x_last0, x);\
+        }
 
-        SOLVEB(x7, a0, up, x_last0, x_last1, x_last2, width, j, 7);
-        SOLVEB(x6, a0, up, x7, x_last0, x_last1, width, j, 6);
-        SOLVEB(x5, a0, up, x6, x7, x_last0, width, j, 5);
-        SOLVEB(x4, a0, up, x5, x6, x7, width, j, 4);
-        SOLVEB(x3, a0, up, x4, x5, x6, width, j, 3);
-        SOLVEB(x2, a0, up, x3, x4, x5, width, j, 2);
-        SOLVEB(x1, a0, up, x2, x3, x4, width, j, 1);
-        SOLVEB(x0, a0, up, x1, x2, x3, width, j, 0);
+        SOLVEB(x7, up, x_last0, x_last1, x_last2, width, j, 7);
+        SOLVEB(x6, up, x7, x_last0, x_last1, width, j, 6);
+        SOLVEB(x5, up, x6, x7, x_last0, width, j, 5);
+        SOLVEB(x4, up, x5, x6, x7, width, j, 4);
+        SOLVEB(x3, up, x4, x5, x6, width, j, 3);
+        SOLVEB(x2, up, x3, x4, x5, width, j, 2);
+        SOLVEB(x1, up, x2, x3, x4, width, j, 1);
+        SOLVEB(x0, up, x1, x2, x3, width, j, 0);
 
 #undef SOLVEB
 
@@ -711,27 +704,25 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
 
 #undef MATMULT
 
-#define SOLVESTOREF(x, a0, lo, di, c, start, j, m)\
-        a0 = _mm256_setzero_ps();\
+#define SOLVESTOREF(x, lo, di, c, start, j, m)\
         start = VSMAX(0, j + m - c + 1);\
         for (int k = start; k < (j + m); k++) {\
             lo = _mm256_set1_ps(lower[k - start][j + m]);\
             x_last = _mm256_load_ps(dstp + (k % 8) * dst_stride + j - 8 * ((j + m) / 8 - k / 8));\
-            a0 = _mm256_fmadd_ps(lo, x_last, a0);\
+            x = _mm256_fnmadd_ps(lo, x_last, x);\
         }\
-        x = _mm256_sub_ps(x, a0);\
         di = _mm256_set1_ps(diagonal[j + m]);\
         x = _mm256_mul_ps(x, di);\
         _mm256_store_ps(dstp + m * dst_stride + j, x);
 
-        SOLVESTOREF(x0, a0, lo, di, c, start, j, 0);
-        SOLVESTOREF(x1, a0, lo, di, c, start, j, 1);
-        SOLVESTOREF(x2, a0, lo, di, c, start, j, 2);
-        SOLVESTOREF(x3, a0, lo, di, c, start, j, 3);
-        SOLVESTOREF(x4, a0, lo, di, c, start, j, 4);
-        SOLVESTOREF(x5, a0, lo, di, c, start, j, 5);
-        SOLVESTOREF(x6, a0, lo, di, c, start, j, 6);
-        SOLVESTOREF(x7, a0, lo, di, c, start, j, 7);
+        SOLVESTOREF(x0, lo, di, c, start, j, 0);
+        SOLVESTOREF(x1, lo, di, c, start, j, 1);
+        SOLVESTOREF(x2, lo, di, c, start, j, 2);
+        SOLVESTOREF(x3, lo, di, c, start, j, 3);
+        SOLVESTOREF(x4, lo, di, c, start, j, 4);
+        SOLVESTOREF(x5, lo, di, c, start, j, 5);
+        SOLVESTOREF(x6, lo, di, c, start, j, 6);
+        SOLVESTOREF(x7, lo, di, c, start, j, 7);
 
 #undef SOLVESTOREF
     }
@@ -739,26 +730,24 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
     // Solve L' x = y
     for (int j = ceil_n(width, 8) - 8; j >= 0; j -= 8) {
 
-#define SOLVESTOREB(x, a0, up, c, start, j, m)\
+#define SOLVESTOREB(x, up, c, start, j, m)\
         x = _mm256_load_ps(dstp + m * dst_stride + j);\
-        a0 = _mm256_setzero_ps();\
         start = VSMIN(width - 1, j + m + c - 1);\
         for (int k = start; k > (j + m); k--) {\
             up = _mm256_set1_ps(upper[k - start + c - 2][j + m]);\
             x_last = _mm256_load_ps(dstp + (k % 8) * dst_stride + j + 8 * (k / 8 - (j + m) / 8));\
-            a0 = _mm256_fmadd_ps(up, x_last, a0);\
+            x = _mm256_fnmadd_ps(up, x_last, x);\
         }\
-        x = _mm256_sub_ps(x, a0);\
         _mm256_store_ps(dstp + m * dst_stride + j, x);
 
-        SOLVESTOREB(x0, a0, up, c, start, j, 7);
-        SOLVESTOREB(x0, a0, up, c, start, j, 6);
-        SOLVESTOREB(x0, a0, up, c, start, j, 5);
-        SOLVESTOREB(x0, a0, up, c, start, j, 4);
-        SOLVESTOREB(x0, a0, up, c, start, j, 3);
-        SOLVESTOREB(x0, a0, up, c, start, j, 2);
-        SOLVESTOREB(x0, a0, up, c, start, j, 1);
-        SOLVESTOREB(x0, a0, up, c, start, j, 0);
+        SOLVESTOREB(x0, up, c, start, j, 7);
+        SOLVESTOREB(x0, up, c, start, j, 6);
+        SOLVESTOREB(x0, up, c, start, j, 5);
+        SOLVESTOREB(x0, up, c, start, j, 4);
+        SOLVESTOREB(x0, up, c, start, j, 3);
+        SOLVESTOREB(x0, up, c, start, j, 2);
+        SOLVESTOREB(x0, up, c, start, j, 1);
+        SOLVESTOREB(x0, up, c, start, j, 0);
 
 #undef SOLVESTOREB
     }
@@ -906,8 +895,7 @@ static void process_plane_v_b3_avx2(int height, int current_width, int *current_
             if (i != 0) {
                 lo = _mm256_set1_ps(lower[i]);
                 x_last = _mm256_load_ps(dstp + (i - 1) * dst_stride + j);
-                a0 = _mm256_mul_ps(lo, x_last);
-                x = _mm256_sub_ps(x, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
             }
             di = _mm256_set1_ps(diagonal[i]);
             x = _mm256_mul_ps(x, di);
@@ -923,8 +911,7 @@ static void process_plane_v_b3_avx2(int height, int current_width, int *current_
             x = _mm256_load_ps(&dstp[i * dst_stride + j]);
             x_last = _mm256_load_ps(dstp + (i + 1) * dst_stride + j);
             up = _mm256_set1_ps(upper[i]);
-            a0 = _mm256_mul_ps(up, x_last);
-            x = _mm256_sub_ps(x, a0);
+            x = _mm256_fnmadd_ps(up, x_last, x);
             _mm256_store_ps(dstp + i * dst_stride + j, x);
         }
     }
@@ -960,30 +947,28 @@ static void process_plane_v_b7_avx2(int height, int current_width, int *current_
             }
 
             // Solve LD y = A' b
-            a0 = _mm256_setzero_ps();
             if (i > 2) {
                 lo = _mm256_set1_ps(lower[0][i]);
                 x_last = _mm256_load_ps(dstp + (i - 3) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(lo, x_last, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
                 lo = _mm256_set1_ps(lower[1][i]);
                 x_last = _mm256_load_ps(dstp + (i - 2) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(lo, x_last, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
                 lo = _mm256_set1_ps(lower[2][i]);
                 x_last = _mm256_load_ps(dstp + (i - 1) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(lo, x_last, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
             } else if (i > 1) {
                 lo = _mm256_set1_ps(lower[0][i]);
                 x_last = _mm256_load_ps(dstp + (i - 2) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(lo, x_last, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
                 lo = _mm256_set1_ps(lower[1][i]);
                 x_last = _mm256_load_ps(dstp + (i - 1) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(lo, x_last, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
             } else if (i > 0) {
                 lo = _mm256_set1_ps(lower[0][i]);
                 x_last = _mm256_load_ps(dstp + (i - 1) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(lo, x_last, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
             }
-            x = _mm256_sub_ps(x, a0);
             di = _mm256_set1_ps(diagonal[i]);
             x = _mm256_mul_ps(x, di);
             _mm256_store_ps(dstp + i * dst_stride + j, x);
@@ -995,31 +980,29 @@ static void process_plane_v_b7_avx2(int height, int current_width, int *current_
         for (int j = 0; j < current_width; j += 8) {
 
             x = _mm256_load_ps(dstp + i * dst_stride + j);
-            a0 = _mm256_setzero_ps();
 
             if (i < height - 3) {
                 up = _mm256_set1_ps(upper[0][i]);
                 x_last = _mm256_load_ps(dstp + (i + 1) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(up, x_last, a0);
+                x = _mm256_fnmadd_ps(up, x_last, x);
                 up = _mm256_set1_ps(upper[1][i]);
                 x_last = _mm256_load_ps(dstp + (i + 2) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(up, x_last, a0);
+                x = _mm256_fnmadd_ps(up, x_last, x);
                 up = _mm256_set1_ps(upper[2][i]);
                 x_last = _mm256_load_ps(dstp + (i + 3) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(up, x_last, a0);
+                x = _mm256_fnmadd_ps(up, x_last, x);
             } else if (i < height - 2) {
                 up = _mm256_set1_ps(upper[1][i]);
                 x_last = _mm256_load_ps(dstp + (i + 1) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(up, x_last, a0);
+                x = _mm256_fnmadd_ps(up, x_last, x);
                 up = _mm256_set1_ps(upper[2][i]);
                 x_last = _mm256_load_ps(dstp + (i + 2) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(up, x_last, a0);
+                x = _mm256_fnmadd_ps(up, x_last, x);
             } else if (i < height - 1) {
                 up = _mm256_set1_ps(upper[2][i]);
                 x_last = _mm256_load_ps(dstp + (i + 1) * dst_stride + j);
-                a0 = _mm256_fmadd_ps(up, x_last, a0);
+                x = _mm256_fnmadd_ps(up, x_last, x);
             }
-            x = _mm256_sub_ps(x, a0);
             _mm256_store_ps(dstp + i * dst_stride + j, x);
         }
     }
@@ -1051,14 +1034,12 @@ static void process_plane_v_avx2(int height, int current_width, int *current_hei
             }
 
             // Solve LD y = A' b
-            a0 = _mm256_setzero_ps();
             start = VSMAX(0, i - c + 1);
             for (int k = start; k < i; k++) {
                 lo = _mm256_set1_ps(lower[k - start][i]);
                 x_last = _mm256_load_ps(dstp + k * dst_stride + j);
-                a0 = _mm256_fmadd_ps(lo, x_last, a0);
+                x = _mm256_fnmadd_ps(lo, x_last, x);
             }
-            x = _mm256_sub_ps(x, a0);
             di = _mm256_set1_ps(diagonal[i]);
             x = _mm256_mul_ps(x, di);
             _mm256_store_ps(dstp + i * dst_stride + j, x);            
@@ -1070,14 +1051,12 @@ static void process_plane_v_avx2(int height, int current_width, int *current_hei
         for (int j = 0; j < current_width; j += 8) {
 
             x = _mm256_load_ps(dstp + i * dst_stride + j);
-            a0 = _mm256_setzero_ps();
             start = VSMIN(height - 1, i + c - 1);
             for (int k = start; k > i; k--) {
                 up = _mm256_set1_ps(upper[k - start + c - 2][i]);
                 x_last = _mm256_load_ps(dstp + k * dst_stride + j);
-                a0 = _mm256_fmadd_ps(up, x_last, a0);
+                x = _mm256_fnmadd_ps(up, x_last, x);
             }
-            x = _mm256_sub_ps(x, a0);
             _mm256_store_ps(dstp + i * dst_stride + j, x);
         }
     }
