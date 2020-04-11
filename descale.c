@@ -933,7 +933,6 @@ static void process_plane_v_b7_avx2(int height, int current_width, int *current_
                                     float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
 {
     __m256 x, a0, a1, lo, up, di, x_last;
-    int start;
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < current_width; j += 8) {
