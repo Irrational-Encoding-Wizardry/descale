@@ -42,18 +42,13 @@ We now have the original vector `x`.
 
 ### Linux
 
-#### With Meson
 ```
 $ meson build
 $ ninja -C build
 ```
 
-#### Manually
-```
-$ gcc -std=c99 -shared -fPIC -O2 -march=native -Isrc -DDESCALE_X86 src/descale.c src/x86/cpuinfo_x86.c src/x86/descale_avx2.c -o libdescale.so
-```
-
 ### Cross-compilation for Windows
 ```
-$ x86_64-w64-mingw32-gcc -std=c99 -shared -fPIC -O2 -march=native -Isrc -DDESCALE_X86 src/descale.c src/x86/cpuinfo_x86.c src/x86/descale_avx2.c -s -o libdescale.dll
+$ meson build --cross-file cross-mingw-x86_64.txt
+$ ninja -C build
 ```
