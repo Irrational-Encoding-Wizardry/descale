@@ -32,7 +32,7 @@ if host_machine.cpu_family().startswith('x86')
     sources += ['src/x86/cpuinfo_x86.c']
 
     libs += static_library('descale_avx2', 'src/x86/descale_avx2.c',
-                dependencies: [deps],
+                dependencies: deps,
                 c_args: ['-mavx2', '-mfma'],
                 pic: true,
                 include_directories: 'src'
@@ -42,7 +42,7 @@ endif
 
 
 shared_module('descale', sources,
-    dependencies: [deps],
+    dependencies: deps,
     include_directories: 'src',
     link_with: libs,
     name_prefix: 'lib',
