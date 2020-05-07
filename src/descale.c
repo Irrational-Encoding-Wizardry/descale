@@ -22,31 +22,12 @@
 #endif
 
 
-/*#ifdef __AVX2__
-    #define process_plane_h_b3 process_plane_h_b3_avx2
-    #define process_plane_v_b3 process_plane_v_b3_avx2
-    #define process_plane_h_b7 process_plane_h_b7_avx2
-    #define process_plane_v_b7 process_plane_v_b7_avx2
-    #define process_plane_h process_plane_h_avx2
-    #define process_plane_v process_plane_v_avx2
-#else
-    #define process_plane_h_b3 process_plane_h_b3_c
-    #define process_plane_v_b3 process_plane_v_b3_c
-    #define process_plane_h_b7 process_plane_h_b7_c
-    #define process_plane_v_b7 process_plane_v_b7_c
-    #define process_plane_h process_plane_h_c
-    #define process_plane_v process_plane_v_c
-#endif*/
-
-
 struct DescaleData
 {
     VSNodeRef *node;
     VSVideoInfo vi_src;
     VSVideoInfo vi_dst;
     int bandwidth;
-    int taps;
-    double b, c;
     float shift_h;
     bool process_h;
     float **upper_h;
@@ -273,6 +254,8 @@ static double calculate_weight(enum DescaleMode mode, int support, double distan
             return 0.0;
         }
     }
+
+    return 0.0;
 }
 
 
@@ -293,7 +276,7 @@ static double round_halfup(double x)
 
 // Most of this is taken from zimg 
 // https://github.com/sekrit-twc/zimg/blob/ce27c27f2147fbb28e417fbf19a95d3cf5d68f4f/src/zimg/resize/filter.cpp#L227
-static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int dst_dim, double b, double c, double shift, double **weights)
+static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int dst_dim, double param1, double param2, double shift, double **weights)
 {
     *weights = calloc(src_dim * dst_dim, sizeof (double));
     double ratio = (double)dst_dim / src_dim;
@@ -305,7 +288,7 @@ static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int
         double begin_pos = round_halfup(pos - support) + 0.5;
         for (int j = 0; j < 2 * support; j++) {
             double xpos = begin_pos + j;
-            total += calculate_weight(mode, support, xpos - pos, b, c);
+            total += calculate_weight(mode, support, xpos - pos, param1, param2);
         }
         for (int j = 0; j < 2 * support; j++) {
             double xpos = begin_pos + j;
@@ -320,7 +303,7 @@ static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int
                 real_pos = xpos;
 
             int idx = (int)floor(real_pos);
-            (*weights)[i * src_dim + idx] += calculate_weight(mode, support, xpos - pos, b, c) / total;
+            (*weights)[i * src_dim + idx] += calculate_weight(mode, support, xpos - pos, param1, param2) / total;
         }
     }
 }
@@ -600,7 +583,7 @@ static const VSFrameRef *VS_CC descale_get_frame(int n, int activationReason, vo
         VSFrameRef *intermediate = vsapi->newVideoFrame(fi, d->vi_dst.width, d->vi_src.height, NULL, core);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, d->vi_dst.width, d->vi_dst.height, src, core);
 
-        for (int plane = 0; plane < d->vi_src.format->numPlanes; ++plane) {
+        for (int plane = 0; plane < d->vi_src.format->numPlanes; plane++) {
             int current_width = vsapi->getFrameWidth(src, plane);
             int current_height = vsapi->getFrameHeight(src, plane);
 
@@ -714,7 +697,6 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     }
 
     d.vi_dst.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, NULL));
-
     d.vi_dst.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, NULL));
 
     d.shift_h = vsapi->propGetFloat(in, "src_left", 0, &err);
@@ -725,20 +707,20 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     if (err)
         d.shift_v = 0;
 
-    if (d.vi_dst.width < 1 || d.vi_dst.height < 1) {
-        vsapi->setError(out, "Descale: width and height must be bigger than 0.");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    if (d.vi_dst.width > d.vi_src.width || d.vi_dst.height > d.vi_src.height) {
-        vsapi->setError(out, "Descale: Output dimension has to be smaller than or equal to input dimension.");
+    if (d.vi_dst.width < 1) {
+        vsapi->setError(out, "Descale: width must be greater than 0.");
         vsapi->freeNode(d.node);
         return;
     }
 
     if (d.vi_dst.height < 8) {
-        vsapi->setError(out, "Descale: Output height has to be greater or equal to 8");
+        vsapi->setError(out, "Descale: Output height must be greater than or equal to 8.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    if (d.vi_dst.width > d.vi_src.width || d.vi_dst.height > d.vi_src.height) {
+        vsapi->setError(out, "Descale: Output dimension must be less than or equal to input dimension.");
         vsapi->freeNode(d.node);
         return;
     }
@@ -748,41 +730,42 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
 
     int support;
     char *funcname;
+    double param1 = 0.0;
+    double param2 = 0.0;
 
     if (mode == bilinear) {
         support = 1;
         funcname = "Debilinear";
     
     } else if (mode == bicubic) {
-        d.b = vsapi->propGetFloat(in, "b", 0, &err);
+        param1 = vsapi->propGetFloat(in, "b", 0, &err);
         if (err)
-            d.b = 0.0;
+            param1 = 0.0;
 
-        d.c = vsapi->propGetFloat(in, "c", 0, &err);
+        param2 = vsapi->propGetFloat(in, "c", 0, &err);
         if (err)
-            d.c = 0.5;
+            param2 = 0.5;
 
         support = 2;
         funcname = "Debicubic";
 
         // If b != 0 Bicubic is not an interpolation filter, so force processing
-        if (d.b != 0) {
+        if (param1 != 0) {
             d.process_h = true;
             d.process_v = true;
         }
 
     } else if (mode == lanczos) {
-        d.taps = int64ToIntS(vsapi->propGetInt(in, "taps", 0, &err));
+        support = int64ToIntS(vsapi->propGetInt(in, "taps", 0, &err));
         if (err)
-            d.taps = 3;
+            support = 3;
 
-        if (d.taps < 1) {
-            vsapi->setError(out, "Descale: taps must be bigger than 0.");
+        if (support < 1) {
+            vsapi->setError(out, "Descale: taps must be greater than 0.");
             vsapi->freeNode(d.node);
             return;
         }
 
-        support = d.taps;
         funcname = "Delanczos";
 
     } else if (mode == spline16) {
@@ -796,6 +779,9 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     } else if (mode == spline64) {
         support = 4;
         funcname = "Despline64";
+    } else {
+        support = 0;
+        funcname = "none";
     }
 
     d.bandwidth = support * 4 - 1;
@@ -834,7 +820,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         double *multiplied_weights;
         double *lower;
 
-        scaling_weights(mode, support, d.vi_dst.width, d.vi_src.width, d.b, d.c, d.shift_h, &weights);
+        scaling_weights(mode, support, d.vi_dst.width, d.vi_src.width, param1, param2, d.shift_h, &weights);
         transpose_matrix(d.vi_src.width, d.vi_dst.width, weights, &transposed_weights);
 
         d.weights_h_left_idx = calloc(ceil_n(d.vi_dst.width, 8), sizeof (int));
@@ -887,7 +873,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         double *multiplied_weights;
         double *lower;
 
-        scaling_weights(mode, support, d.vi_dst.height, d.vi_src.height, d.b, d.c, d.shift_v, &weights);
+        scaling_weights(mode, support, d.vi_dst.height, d.vi_src.height, param1, param2, d.shift_v, &weights);
         transpose_matrix(d.vi_src.height, d.vi_dst.height, weights, &transposed_weights);
 
         d.weights_v_left_idx = calloc(ceil_n(d.vi_dst.height, 8), sizeof (int));
