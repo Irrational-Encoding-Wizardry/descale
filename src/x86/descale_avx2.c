@@ -20,66 +20,66 @@
 // Taken from zimg https://github.com/sekrit-twc/zimg
 static inline __attribute__((always_inline)) void mm256_transpose8_ps(__m256 *row0, __m256 *row1, __m256 *row2, __m256 *row3, __m256 *row4, __m256 *row5, __m256 *row6, __m256 *row7)
 {
-	__m256 t0, t1, t2, t3, t4, t5, t6, t7;
-	__m256 tt0, tt1, tt2, tt3, tt4, tt5, tt6, tt7;
+    __m256 t0, t1, t2, t3, t4, t5, t6, t7;
+    __m256 tt0, tt1, tt2, tt3, tt4, tt5, tt6, tt7;
 
-	t0 = _mm256_unpacklo_ps(*row0, *row1);
-	t1 = _mm256_unpackhi_ps(*row0, *row1);
-	t2 = _mm256_unpacklo_ps(*row2, *row3);
-	t3 = _mm256_unpackhi_ps(*row2, *row3);
-	t4 = _mm256_unpacklo_ps(*row4, *row5);
-	t5 = _mm256_unpackhi_ps(*row4, *row5);
-	t6 = _mm256_unpacklo_ps(*row6, *row7);
-	t7 = _mm256_unpackhi_ps(*row6, *row7);
+    t0 = _mm256_unpacklo_ps(*row0, *row1);
+    t1 = _mm256_unpackhi_ps(*row0, *row1);
+    t2 = _mm256_unpacklo_ps(*row2, *row3);
+    t3 = _mm256_unpackhi_ps(*row2, *row3);
+    t4 = _mm256_unpacklo_ps(*row4, *row5);
+    t5 = _mm256_unpackhi_ps(*row4, *row5);
+    t6 = _mm256_unpacklo_ps(*row6, *row7);
+    t7 = _mm256_unpackhi_ps(*row6, *row7);
 
-	tt0 = _mm256_shuffle_ps(t0, t2, _MM_SHUFFLE(1, 0, 1, 0));
-	tt1 = _mm256_shuffle_ps(t0, t2, _MM_SHUFFLE(3, 2, 3, 2));
-	tt2 = _mm256_shuffle_ps(t1, t3, _MM_SHUFFLE(1, 0, 1, 0));
-	tt3 = _mm256_shuffle_ps(t1, t3, _MM_SHUFFLE(3, 2, 3, 2));
-	tt4 = _mm256_shuffle_ps(t4, t6, _MM_SHUFFLE(1, 0, 1, 0));
-	tt5 = _mm256_shuffle_ps(t4, t6, _MM_SHUFFLE(3, 2, 3, 2));
-	tt6 = _mm256_shuffle_ps(t5, t7, _MM_SHUFFLE(1, 0, 1, 0));
-	tt7 = _mm256_shuffle_ps(t5, t7, _MM_SHUFFLE(3, 2, 3, 2));
+    tt0 = _mm256_shuffle_ps(t0, t2, _MM_SHUFFLE(1, 0, 1, 0));
+    tt1 = _mm256_shuffle_ps(t0, t2, _MM_SHUFFLE(3, 2, 3, 2));
+    tt2 = _mm256_shuffle_ps(t1, t3, _MM_SHUFFLE(1, 0, 1, 0));
+    tt3 = _mm256_shuffle_ps(t1, t3, _MM_SHUFFLE(3, 2, 3, 2));
+    tt4 = _mm256_shuffle_ps(t4, t6, _MM_SHUFFLE(1, 0, 1, 0));
+    tt5 = _mm256_shuffle_ps(t4, t6, _MM_SHUFFLE(3, 2, 3, 2));
+    tt6 = _mm256_shuffle_ps(t5, t7, _MM_SHUFFLE(1, 0, 1, 0));
+    tt7 = _mm256_shuffle_ps(t5, t7, _MM_SHUFFLE(3, 2, 3, 2));
 
-	*row0 = _mm256_permute2f128_ps(tt0, tt4, 0x20);
-	*row1 = _mm256_permute2f128_ps(tt1, tt5, 0x20);
-	*row2 = _mm256_permute2f128_ps(tt2, tt6, 0x20);
-	*row3 = _mm256_permute2f128_ps(tt3, tt7, 0x20);
-	*row4 = _mm256_permute2f128_ps(tt0, tt4, 0x31);
-	*row5 = _mm256_permute2f128_ps(tt1, tt5, 0x31);
-	*row6 = _mm256_permute2f128_ps(tt2, tt6, 0x31);
-	*row7 = _mm256_permute2f128_ps(tt3, tt7, 0x31);
+    *row0 = _mm256_permute2f128_ps(tt0, tt4, 0x20);
+    *row1 = _mm256_permute2f128_ps(tt1, tt5, 0x20);
+    *row2 = _mm256_permute2f128_ps(tt2, tt6, 0x20);
+    *row3 = _mm256_permute2f128_ps(tt3, tt7, 0x20);
+    *row4 = _mm256_permute2f128_ps(tt0, tt4, 0x31);
+    *row5 = _mm256_permute2f128_ps(tt1, tt5, 0x31);
+    *row6 = _mm256_permute2f128_ps(tt2, tt6, 0x31);
+    *row7 = _mm256_permute2f128_ps(tt3, tt7, 0x31);
 }
 
 
 // Taken from zimg https://github.com/sekrit-twc/zimg
 static inline __attribute__((always_inline)) void transpose_line_8x8_ps(float * VS_RESTRICT dst, const float * VS_RESTRICT src, int src_stride, int left, int right)
 {
-	for (int j = left; j < right; j += 8) {
-		__m256 x0, x1, x2, x3, x4, x5, x6, x7;
+    for (int j = left; j < right; j += 8) {
+        __m256 x0, x1, x2, x3, x4, x5, x6, x7;
 
-		x0 = _mm256_load_ps(src + j);
-		x1 = _mm256_load_ps(src + src_stride + j);
-		x2 = _mm256_load_ps(src + 2 * src_stride + j);
-		x3 = _mm256_load_ps(src + 3 * src_stride + j);
-		x4 = _mm256_load_ps(src + 4 * src_stride + j);
-		x5 = _mm256_load_ps(src + 5 * src_stride + j);
-		x6 = _mm256_load_ps(src + 6 * src_stride + j);
-		x7 = _mm256_load_ps(src + 7 * src_stride + j);
+        x0 = _mm256_load_ps(src + j);
+        x1 = _mm256_load_ps(src + src_stride + j);
+        x2 = _mm256_load_ps(src + 2 * src_stride + j);
+        x3 = _mm256_load_ps(src + 3 * src_stride + j);
+        x4 = _mm256_load_ps(src + 4 * src_stride + j);
+        x5 = _mm256_load_ps(src + 5 * src_stride + j);
+        x6 = _mm256_load_ps(src + 6 * src_stride + j);
+        x7 = _mm256_load_ps(src + 7 * src_stride + j);
 
-		mm256_transpose8_ps(&x0, &x1, &x2, &x3, &x4, &x5, &x6, &x7);
+        mm256_transpose8_ps(&x0, &x1, &x2, &x3, &x4, &x5, &x6, &x7);
 
-		_mm256_store_ps(dst, x0);
-		_mm256_store_ps(dst + 8, x1);
-		_mm256_store_ps(dst + 16, x2);
-		_mm256_store_ps(dst + 24, x3);
-		_mm256_store_ps(dst + 32, x4);
-		_mm256_store_ps(dst + 40, x5);
-		_mm256_store_ps(dst + 48, x6);
-		_mm256_store_ps(dst + 56, x7);
+        _mm256_store_ps(dst, x0);
+        _mm256_store_ps(dst + 8, x1);
+        _mm256_store_ps(dst + 16, x2);
+        _mm256_store_ps(dst + 24, x3);
+        _mm256_store_ps(dst + 32, x4);
+        _mm256_store_ps(dst + 40, x5);
+        _mm256_store_ps(dst + 48, x6);
+        _mm256_store_ps(dst + 56, x7);
 
-		dst += 64;
-	}
+        dst += 64;
+    }
 }
 
 
