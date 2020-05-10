@@ -269,7 +269,8 @@ static double calculate_weight(enum DescaleMode mode, int support, double distan
 }
 
 
-// Taken from zimg https://github.com/sekrit-twc/zimg
+// Taken from zimg
+// https://github.com/sekrit-twc/zimg/blob/09802b8751c18165519d32407c498f0e3024f1f1/src/zimg/resize/filter.cpp#L33
 static double round_halfup(double x)
 {
     /* When rounding on the pixel grid, the invariant
@@ -277,10 +278,7 @@ static double round_halfup(double x)
      * must be preserved. This precludes the use of modes such as
      * half-to-even and half-away-from-zero.
      */
-    bool sign = (x < 0);
-
-    x = round(fabs(x));
-    return sign ? -x : x;
+    return x < 0 ? floor(x + 0.5) : floor(x + 0.49999999999999994);
 }
 
 
