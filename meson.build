@@ -1,7 +1,7 @@
 project('Descale', 'c',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c99'],
     meson_version: '>=0.51.0',
-    version: '3'
+    version: '4'
 )
 
 cc = meson.get_compiler('c')
