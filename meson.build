@@ -1,7 +1,7 @@
 project('Descale', 'c',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c99'],
     meson_version: '>=0.51.0',
-    version: '4'
+    version: '5'
 )
 
 cc = meson.get_compiler('c')
@@ -19,7 +19,7 @@ deps = []
 if host_machine.system() == 'windows'
     # Statically link things on Windows.
     deps += cc.find_library('m', static: true, required: false)
-    deps += cc.find_library('pthread', static: true)
+    deps += cc.find_library('winpthread', static: true)
     installdir = join_paths(get_option('libdir'), 'vapoursynth')
 else
     deps += cc.find_library('m', required: false)
