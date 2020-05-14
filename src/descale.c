@@ -98,7 +98,7 @@ static void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, double
 */
 static void banded_ldlt_decomposition(int n, int bandwidth, double *matrix)
 {
-	int c = bandwidth / 2;
+    int c = bandwidth / 2;
     // Division by 0 can happen if shift is used
     double eps = DBL_EPSILON;
 
@@ -151,7 +151,7 @@ static void transpose_matrix(int rows, int columns, const double *matrix, double
 
 static void extract_compressed_lower_upper_diagonal(int n, int bandwidth, const double *lower, const double *upper, float ***compressed_lower, float ***compressed_upper, float **diagonal)
 {
-	int c = bandwidth / 2;
+    int c = bandwidth / 2;
     // Division by 0 can happen if shift is used
     double eps = DBL_EPSILON;
     *compressed_lower = calloc(c, sizeof (float *));
