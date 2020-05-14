@@ -15,6 +15,7 @@
 #include <immintrin.h>
 #include <vapoursynth/VSHelper.h>
 #include "common.h"
+#include "x86/descale_avx2.h"
 
 
 // Taken from zimg https://github.com/sekrit-twc/zimg
@@ -249,12 +250,12 @@ static void process_line8_h_b7_avx2(int width, int current_height, int *current_
             lo = _mm256_set1_ps(lower[2][j + m]);\
             x = _mm256_fnmadd_ps(lo, x_last0, x);\
         } else if (j + m > 1) {\
-            lo = _mm256_set1_ps(lower[0][j + m]);\
-            x = _mm256_fnmadd_ps(lo, x_last1, x);\
             lo = _mm256_set1_ps(lower[1][j + m]);\
+            x = _mm256_fnmadd_ps(lo, x_last1, x);\
+            lo = _mm256_set1_ps(lower[2][j + m]);\
             x = _mm256_fnmadd_ps(lo, x_last0, x);\
         } else if (j + m > 0) {\
-            lo = _mm256_set1_ps(lower[0][j + m]);\
+            lo = _mm256_set1_ps(lower[2][j + m]);\
             x = _mm256_fnmadd_ps(lo, x_last0, x);\
         }\
         di = _mm256_set1_ps(diagonal[j + m]);\
@@ -307,12 +308,12 @@ static void process_line8_h_b7_avx2(int width, int current_height, int *current_
             up = _mm256_set1_ps(upper[2][j + m]);\
             x = _mm256_fnmadd_ps(up, x_last2, x);\
         } else if (j + m < width - 2) {\
-            up = _mm256_set1_ps(upper[1][j + m]);\
+            up = _mm256_set1_ps(upper[0][j + m]);\
             x = _mm256_fnmadd_ps(up, x_last0, x);\
-            up = _mm256_set1_ps(upper[2][j + m]);\
+            up = _mm256_set1_ps(upper[1][j + m]);\
             x = _mm256_fnmadd_ps(up, x_last1, x);\
         } else if (j + m < width - 1) {\
-            up = _mm256_set1_ps(upper[2][j + m]);\
+            up = _mm256_set1_ps(upper[0][j + m]);\
             x = _mm256_fnmadd_ps(up, x_last0, x);\
         }
 
@@ -360,7 +361,7 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
     __m256 x0, x1, x2, x3, x4, x5, x6, x7;
     __m256 a0, a1, lo, up, di, x_last;
     int start;
-    int c = (bandwidth + 1) / 2;
+    int c = bandwidth / 2;
     x_last = _mm256_setzero_ps();
     transpose_line_8x8_ps(temp, srcp, src_stride, 0, ceil_n(*current_width, 8));
 
@@ -394,9 +395,9 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
 #undef MATMULT
 
 #define SOLVESTOREF(x, lo, di, c, start, j, m)\
-        start = VSMAX(0, j + m - c + 1);\
+        start = VSMAX(0, j + m - c);\
         for (int k = start; k < (j + m); k++) {\
-            lo = _mm256_set1_ps(lower[k - start][j + m]);\
+            lo = _mm256_set1_ps(lower[k - j - m + c][j + m]);\
             x_last = _mm256_load_ps(dstp + (k % 8) * dst_stride + j - 8 * ((j + m) / 8 - k / 8));\
             x = _mm256_fnmadd_ps(lo, x_last, x);\
         }\
@@ -421,9 +422,9 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
 
 #define SOLVESTOREB(x, up, c, start, j, m)\
         x = _mm256_load_ps(dstp + m * dst_stride + j);\
-        start = VSMIN(width - 1, j + m + c - 1);\
+        start = VSMIN(width - 1, j + m + c);\
         for (int k = start; k > (j + m); k--) {\
-            up = _mm256_set1_ps(upper[k - start + c - 2][j + m]);\
+            up = _mm256_set1_ps(upper[k - j - m - 1][j + m]);\
             x_last = _mm256_load_ps(dstp + (k % 8) * dst_stride + j + 8 * (k / 8 - (j + m) / 8));\
             x = _mm256_fnmadd_ps(up, x_last, x);\
         }\
@@ -648,14 +649,14 @@ void process_plane_v_b7_avx2(int height, int current_width, int *current_height,
                 x_last = _mm256_load_ps(dstp + (i - 1) * dst_stride + j);
                 x = _mm256_fnmadd_ps(lo, x_last, x);
             } else if (i > 1) {
-                lo = _mm256_set1_ps(lower[0][i]);
+                lo = _mm256_set1_ps(lower[1][i]);
                 x_last = _mm256_load_ps(dstp + (i - 2) * dst_stride + j);
                 x = _mm256_fnmadd_ps(lo, x_last, x);
-                lo = _mm256_set1_ps(lower[1][i]);
+                lo = _mm256_set1_ps(lower[2][i]);
                 x_last = _mm256_load_ps(dstp + (i - 1) * dst_stride + j);
                 x = _mm256_fnmadd_ps(lo, x_last, x);
             } else if (i > 0) {
-                lo = _mm256_set1_ps(lower[0][i]);
+                lo = _mm256_set1_ps(lower[2][i]);
                 x_last = _mm256_load_ps(dstp + (i - 1) * dst_stride + j);
                 x = _mm256_fnmadd_ps(lo, x_last, x);
             }
@@ -682,14 +683,14 @@ void process_plane_v_b7_avx2(int height, int current_width, int *current_height,
                 x_last = _mm256_load_ps(dstp + (i + 3) * dst_stride + j);
                 x = _mm256_fnmadd_ps(up, x_last, x);
             } else if (i < height - 2) {
-                up = _mm256_set1_ps(upper[1][i]);
+                up = _mm256_set1_ps(upper[0][i]);
                 x_last = _mm256_load_ps(dstp + (i + 1) * dst_stride + j);
                 x = _mm256_fnmadd_ps(up, x_last, x);
-                up = _mm256_set1_ps(upper[2][i]);
+                up = _mm256_set1_ps(upper[1][i]);
                 x_last = _mm256_load_ps(dstp + (i + 2) * dst_stride + j);
                 x = _mm256_fnmadd_ps(up, x_last, x);
             } else if (i < height - 1) {
-                up = _mm256_set1_ps(upper[2][i]);
+                up = _mm256_set1_ps(upper[0][i]);
                 x_last = _mm256_load_ps(dstp + (i + 1) * dst_stride + j);
                 x = _mm256_fnmadd_ps(up, x_last, x);
             }
@@ -710,7 +711,7 @@ void process_plane_v_avx2(int height, int current_width, int *current_height, in
 {
     __m256 x, a0, a1, lo, up, di, x_last;
     int start;
-    int c = (bandwidth + 1) / 2;
+    int c = bandwidth / 2;
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < current_width; j += 8) {
@@ -724,9 +725,9 @@ void process_plane_v_avx2(int height, int current_width, int *current_height, in
             }
 
             // Solve LD y = A' b
-            start = VSMAX(0, i - c + 1);
+            start = VSMAX(0, i - c);
             for (int k = start; k < i; k++) {
-                lo = _mm256_set1_ps(lower[k - start][i]);
+                lo = _mm256_set1_ps(lower[k - i + c][i]);
                 x_last = _mm256_load_ps(dstp + k * dst_stride + j);
                 x = _mm256_fnmadd_ps(lo, x_last, x);
             }
@@ -741,9 +742,9 @@ void process_plane_v_avx2(int height, int current_width, int *current_height, in
         for (int j = 0; j < current_width; j += 8) {
 
             x = _mm256_load_ps(dstp + i * dst_stride + j);
-            start = VSMIN(height - 1, i + c - 1);
+            start = VSMIN(height - 1, i + c);
             for (int k = start; k > i; k--) {
-                up = _mm256_set1_ps(upper[k - start + c - 2][i]);
+                up = _mm256_set1_ps(upper[k - i - 1][i]);
                 x_last = _mm256_load_ps(dstp + k * dst_stride + j);
                 x = _mm256_fnmadd_ps(up, x_last, x);
             }

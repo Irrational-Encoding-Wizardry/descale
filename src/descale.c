@@ -78,10 +78,10 @@ struct DescaleData
 
 static void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, double *matrix)
 {
-    int c = (bandwidth + 1) / 2;
+    int c = bandwidth / 2;
 
     for (int i = 1; i < rows; i++) {
-        int start = VSMAX(i - (c - 1), 0);
+        int start = VSMAX(i - c, 0);
         for (int j = start; j < i; j++) {
             matrix[i * rows + j] *= matrix[j * rows + j];
         }
@@ -96,26 +96,26 @@ static void multiply_banded_matrix_with_diagonal(int rows, int bandwidth, double
  * contains L' and D after decomposition. The main diagonal of
  * ones of L' is not saved.
 */
-static void banded_ldlt_decomposition(int rows, int bandwidth, double *matrix)
+static void banded_ldlt_decomposition(int n, int bandwidth, double *matrix)
 {
-    int c = (bandwidth + 1) / 2;
+	int c = bandwidth / 2;
     // Division by 0 can happen if shift is used
     double eps = DBL_EPSILON;
 
-    for (int i = 0; i < rows; i++) {
-        int end = VSMIN(c, rows - i);
+    for (int i = 0; i < n; i++) {
+        int end = VSMIN(c + 1, n - i);
 
         for (int j = 1; j < end; j++) {
-            double d = matrix[i * rows + i + j] / (matrix[i * rows + i] + eps);
+            double d = matrix[i * n + i + j] / (matrix[i * n + i] + eps);
 
             for (int k = 0; k < end - j; k++) {
-                matrix[(i + j) * rows + i + j + k] -= d * matrix[i * rows + i + j + k];
+                matrix[(i + j) * n + i + j + k] -= d * matrix[i * n + i + j + k];
             }
         }
 
-        double e = 1.0 / (matrix[i * rows + i] + eps);
+        double e = 1.0 / (matrix[i * n + i] + eps);
         for (int j = 1; j < end; j++) {
-                matrix[i * rows + i + j] *= e;
+                matrix[i * n + i + j] *= e;
         }
     }
 }
@@ -149,36 +149,36 @@ static void transpose_matrix(int rows, int columns, const double *matrix, double
 }
 
 
-static void extract_compressed_lower_upper_diagonal(int rows, int bandwidth, const double *lower, const double *upper, float ***compressed_lower, float ***compressed_upper, float **diagonal)
+static void extract_compressed_lower_upper_diagonal(int n, int bandwidth, const double *lower, const double *upper, float ***compressed_lower, float ***compressed_upper, float **diagonal)
 {
-    *compressed_lower = calloc(bandwidth / 2, sizeof (float *));
-    *compressed_upper = calloc(bandwidth / 2, sizeof (float *));
-    *diagonal = calloc(ceil_n(rows, 8), sizeof (float));
-    int c = (bandwidth + 1) / 2;
+	int c = bandwidth / 2;
     // Division by 0 can happen if shift is used
     double eps = DBL_EPSILON;
+    *compressed_lower = calloc(c, sizeof (float *));
+    *compressed_upper = calloc(c, sizeof (float *));
+    *diagonal = calloc(ceil_n(n, 8), sizeof (float));
 
-    for (int i = 0; i < c - 1; i++) {
-        (*compressed_lower)[i] = calloc(ceil_n(rows, 8), sizeof (float));
-        (*compressed_upper)[i] = calloc(ceil_n(rows, 8), sizeof (float));
+    for (int i = 0; i < c; i++) {
+        (*compressed_lower)[i] = calloc(ceil_n(n, 8), sizeof (float));
+        (*compressed_upper)[i] = calloc(ceil_n(n, 8), sizeof (float));
     }
 
-    for (int i = 0; i < rows; i++) {
-        int start = VSMAX(i - c + 1, 0);
-        for (int j = start; j < start + c - 1; j++) {
-            (*compressed_lower)[j - start][i] = (float)lower[i * rows + j];
+    for (int i = 0; i < n; i++) {
+        int start = VSMAX(i - c, 0);
+        for (int j = start; j < i; j++) {
+            (*compressed_lower)[j - i + c][i] = (float)lower[i * n + j];
         }
     }
 
-    for (int i = 0; i < rows; i++) {
-        int start = VSMIN(i + c - 1, rows - 1);
+    for (int i = 0; i < n; i++) {
+        int start = VSMIN(i + c, n - 1);
         for (int j = start; j > i; j--) {
-            (*compressed_upper)[c - 2 + j - start][i] = (float)upper[i * rows + j];
+            (*compressed_upper)[j - i - 1][i] = (float)upper[i * n + j];
         }
     }
 
-    for (int i = 0; i < rows; i++) {
-        (*diagonal)[i] = (float)(1.0 / (lower[i * rows + i] + eps));
+    for (int i = 0; i < n; i++) {
+        (*diagonal)[i] = (float)(1.0 / (lower[i * n + i] + eps));
     }
 
 }
@@ -371,10 +371,10 @@ static void process_plane_h_b7_c(int width, int current_height, int *current_wid
                 sum -= lower[1][j] * dstp[j - 2];
                 sum -= lower[2][j] * dstp[j - 1];
             } else if (j > 1) {
-                sum -= lower[0][j] * dstp[j - 2];
-                sum -= lower[1][j] * dstp[j - 1];
+                sum -= lower[1][j] * dstp[j - 2];
+                sum -= lower[2][j] * dstp[j - 1];
             } else if (j > 0) {
-                sum -= lower[0][j] * dstp[j - 1];
+                sum -= lower[2][j] * dstp[j - 1];
             }
 
             dstp[j] = sum * diagonal[j];
@@ -389,10 +389,10 @@ static void process_plane_h_b7_c(int width, int current_height, int *current_wid
                 sum += upper[2][j] * dstp[j + 3];
             }
             else if (j < width - 2) {
-                sum += upper[1][j] * dstp[j + 1];
-                sum += upper[2][j] * dstp[j + 2];}
+                sum += upper[0][j] * dstp[j + 1];
+                sum += upper[1][j] * dstp[j + 2];}
             else if (j < width - 1) {
-                sum += upper[2][j] * dstp[j + 1];
+                sum += upper[0][j] * dstp[j + 1];
             }
 
             dstp[j] -= sum;
@@ -410,12 +410,12 @@ static void process_plane_h_c(int width, int current_height, int *current_width,
                               int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
                               float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
 {
-    int c = (bandwidth + 1) / 2;
+    int c = bandwidth / 2;
 
     for (int i = 0; i < current_height; i++) {
         for (int j = 0; j < width; j++) {
             float sum = 0.0f;
-            int start = VSMAX(0, j - c + 1);
+            int start = VSMAX(0, j - c);
 
             // A' b
             for (int k = weights_left_idx[j]; k < weights_right_idx[j]; k++)
@@ -423,7 +423,7 @@ static void process_plane_h_c(int width, int current_height, int *current_width,
 
             // Solve LD y = A' b
             for (int k = start; k < j; k++) {
-                sum -= lower[k - start][j] * dstp[k];
+                sum -= lower[k - j + c][j] * dstp[k];
             }
 
             dstp[j] = sum * diagonal[j];
@@ -432,10 +432,10 @@ static void process_plane_h_c(int width, int current_height, int *current_width,
         // Solve L' x = y
         for (int j = width - 2; j >= 0; j--) {
             float sum = 0.0f;
-            int start = VSMIN(width - 1, j + c - 1);
+            int start = VSMIN(width - 1, j + c);
 
             for (int k = start; k > j; k--) {
-                sum += upper[k - start + c - 2][j] * dstp[k];
+                sum += upper[k - j - 1][j] * dstp[k];
             }
 
             dstp[j] -= sum;
@@ -500,10 +500,10 @@ static void process_plane_v_b7_c(int height, int current_width, int *current_hei
                 sum -= lower[1][i] * dstp[(i - 2) * dst_stride + j];
                 sum -= lower[2][i] * dstp[(i - 1) * dst_stride + j];
             } else if (i > 1) {
-                sum -= lower[0][i] * dstp[(i - 2) * dst_stride + j];
-                sum -= lower[1][i] * dstp[(i - 1) * dst_stride + j];
+                sum -= lower[1][i] * dstp[(i - 2) * dst_stride + j];
+                sum -= lower[2][i] * dstp[(i - 1) * dst_stride + j];
             } else if (i > 0) {
-                sum -= lower[0][i] * dstp[(i - 1) * dst_stride + j];
+                sum -= lower[2][i] * dstp[(i - 1) * dst_stride + j];
             }
 
             dstp[i * dst_stride +j] = sum * diagonal[i];
@@ -518,12 +518,11 @@ static void process_plane_v_b7_c(int height, int current_width, int *current_hei
                 sum += upper[0][i] * dstp[(i + 1) * dst_stride + j];
                 sum += upper[1][i] * dstp[(i + 2) * dst_stride + j];
                 sum += upper[2][i] * dstp[(i + 3) * dst_stride + j];
-            }
-            else if (i < height - 2) {
-                sum += upper[1][i] * dstp[(i + 1) * dst_stride + j];
-                sum += upper[2][i] * dstp[(i + 2) * dst_stride + j];}
-            else if (i < height - 1) {
-                sum += upper[2][i] * dstp[(i + 1) * dst_stride + j];
+            } else if (i < height - 2) {
+                sum += upper[0][i] * dstp[(i + 1) * dst_stride + j];
+                sum += upper[1][i] * dstp[(i + 2) * dst_stride + j];
+            } else if (i < height - 1) {
+                sum += upper[0][i] * dstp[(i + 1) * dst_stride + j];
             }
 
             dstp[i * dst_stride + j] -= sum;
@@ -538,12 +537,12 @@ static void process_plane_v_c(int height, int current_width, int *current_height
                               int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
                               float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
 {
-    int c = (bandwidth + 1) / 2;
+    int c = bandwidth / 2;
 
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < current_width; i++) {
             float sum = 0.0f;
-            int start = VSMAX(0, j - c + 1);
+            int start = VSMAX(0, j - c);
 
             // A' b
             for (int k = weights_left_idx[j]; k < weights_right_idx[j]; ++k)
@@ -551,7 +550,7 @@ static void process_plane_v_c(int height, int current_width, int *current_height
 
             // Solve LD y = A' b
             for (int k = start; k < j; k++) {
-                sum -= lower[k - start][j] * dstp[k * dst_stride + i];
+                sum -= lower[k - j + c][j] * dstp[k * dst_stride + i];
             }
 
             dstp[j * dst_stride + i] = sum * diagonal[j];
@@ -563,10 +562,10 @@ static void process_plane_v_c(int height, int current_width, int *current_height
     for (int j = height - 2; j >= 0; j--) {
         for (int i = 0; i < current_width; i++) {
             float sum = 0.0f;
-            int start = VSMIN(height - 1, j + c - 1);
+            int start = VSMIN(height - 1, j + c);
 
             for (int k = start; k > j; k--) {
-                sum += upper[k - start + c - 2][j] * dstp[k * dst_stride + i];
+                sum += upper[k - j - 1][j] * dstp[k * dst_stride + i];
             }
 
             dstp[j * dst_stride + i] -= sum;
