@@ -776,8 +776,9 @@ static void VS_CC descale_free(void *instance_data, VSCore *core, const VSAPI *v
 {
     struct DescaleData *d = (struct DescaleData *)instance_data;
 
+    vsapi->freeNode(d->node);
+
     if (d->initialized) {
-        vsapi->freeNode(d->node);
         if (d->process_h) {
             free(d->weights_h);
             free(d->weights_h_left_idx);
