@@ -75,32 +75,32 @@ struct X86Capabilities query_x86_capabilities(void)
 
     // osxsave
     if (regs[2] & (1U << 27))
-    xcr0 = do_xgetbv(0);
+        xcr0 = do_xgetbv(0);
 
     // XMM and YMM state.
     if ((xcr0 & 0x06) == 0x06) {
-    caps.avx  = !!(regs[2] & (1U << 28));
-    caps.f16c = !!(regs[2] & (1U << 29));
+        caps.avx  = !!(regs[2] & (1U << 28));
+        caps.f16c = !!(regs[2] & (1U << 29));
     }
 
     do_cpuid(regs, 7, 0);
     if ((xcr0 & 0x06) == 0x06) {
-    caps.avx2 = !!(regs[1] & (1U << 5));
+        caps.avx2 = !!(regs[1] & (1U << 5));
     }
 
     // ZMM state.
     if ((xcr0 & 0xE0) == 0xE0) {
-    caps.avx512f         = !!(regs[1] & (1U << 16));
-    caps.avx512dq        = !!(regs[1] & (1U << 17));
-    caps.avx512ifma      = !!(regs[1] & (1U << 21));
-    caps.avx512cd        = !!(regs[1] & (1U << 28));
-    caps.avx512bw        = !!(regs[1] & (1U << 30));
-    caps.avx512vl        = !!(regs[1] & (1U << 31));
-    caps.avx512vbmi      = !!(regs[2] & (1U << 1));
-    caps.avx512vbmi2     = !!(regs[2] & (1U << 6));
-    caps.avx512vnni      = !!(regs[2] & (1U << 11));
-    caps.avx512bitalg    = !!(regs[2] & (1U << 12));
-    caps.avx512vpopcntdq = !!(regs[2] & (1U << 14));
+        caps.avx512f         = !!(regs[1] & (1U << 16));
+        caps.avx512dq        = !!(regs[1] & (1U << 17));
+        caps.avx512ifma      = !!(regs[1] & (1U << 21));
+        caps.avx512cd        = !!(regs[1] & (1U << 28));
+        caps.avx512bw        = !!(regs[1] & (1U << 30));
+        caps.avx512vl        = !!(regs[1] & (1U << 31));
+        caps.avx512vbmi      = !!(regs[2] & (1U << 1));
+        caps.avx512vbmi2     = !!(regs[2] & (1U << 6));
+        caps.avx512vnni      = !!(regs[2] & (1U << 11));
+        caps.avx512bitalg    = !!(regs[2] & (1U << 12));
+        caps.avx512vpopcntdq = !!(regs[2] & (1U << 14));
     }
 
     // Extended processor info.
@@ -110,23 +110,23 @@ struct X86Capabilities query_x86_capabilities(void)
     // Zen1 vs Zen2.
     do_cpuid(regs, 0, 1);
     if (regs[1] == 0x68747541U && regs[3] == 0x69746E65U && regs[2] == 0x444D4163U /* AuthenticAMD */) {
-    unsigned model;
-    unsigned family;
+        unsigned model;
+        unsigned family;
 
-    do_cpuid(regs, 1, 0);
-    model  = (regs[0] >> 4) & 0x0FU;
-    family = (regs[0] >> 8) & 0x0FU;
+        do_cpuid(regs, 1, 0);
+        model  = (regs[0] >> 4) & 0x0FU;
+        family = (regs[0] >> 8) & 0x0FU;
 
-    if (family == 6) {
-        family += ((regs[0] >> 20) & 0x0FU);
-    } else if (family == 15) {
-        family += ((regs[0] >> 20) & 0x0FU);
-        model  += ((regs[0] >> 16) & 0x0FU) << 4;
-    }
+        if (family == 6) {
+            family += ((regs[0] >> 20) & 0x0FU);
+        } else if (family == 15) {
+            family += ((regs[0] >> 20) & 0x0FU);
+            model  += ((regs[0] >> 16) & 0x0FU) << 4;
+        }
 
-    caps.piledriver = family == 0x15 && model == 0x02;
-    caps.zen1 = family == 0x17 && model <= 0x1FU;
-    caps.zen2 = family == 0x17 && model >= 0x20U;
+        caps.piledriver = family == 0x15 && model == 0x02;
+        caps.zen1 = family == 0x17 && model <= 0x1FU;
+        caps.zen2 = family == 0x17 && model >= 0x20U;
     }
 
     return caps;

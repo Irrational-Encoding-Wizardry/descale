@@ -48,7 +48,10 @@ struct DescaleData
     double param1;
     double param2;
     int bandwidth;
-    float shift_h;
+    double shift_h;
+    double shift_v;
+    double active_width;
+    double active_height;
 
     bool process_h;
     float **upper_h;
@@ -58,7 +61,6 @@ struct DescaleData
     int *weights_h_left_idx;
     int *weights_h_right_idx;
     int weights_h_columns;
-    float shift_v;
     bool process_v;
     float **upper_v;
     float **lower_v;
@@ -284,10 +286,10 @@ static double round_halfup(double x)
 
 // Most of this is taken from zimg 
 // https://github.com/sekrit-twc/zimg/blob/ce27c27f2147fbb28e417fbf19a95d3cf5d68f4f/src/zimg/resize/filter.cpp#L227
-static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int dst_dim, double param1, double param2, double shift, double **weights)
+static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int dst_dim, double param1, double param2, double shift, double active_dim, double **weights)
 {
     *weights = calloc(src_dim * dst_dim, sizeof (double));
-    double ratio = (double)dst_dim / src_dim;
+    double ratio = (double)dst_dim / active_dim;
 
     for (int i = 0; i < dst_dim; i++) {
 
@@ -584,7 +586,7 @@ static void initialize_descale_data(struct DescaleData *d)
         double *multiplied_weights;
         double *lower;
 
-        scaling_weights(d->mode, d->support, d->vi_dst.width, d->vi_src.width, d->param1, d->param2, d->shift_h, &weights);
+        scaling_weights(d->mode, d->support, d->vi_dst.width, d->vi_src.width, d->param1, d->param2, d->shift_h, d->active_width, &weights);
         transpose_matrix(d->vi_src.width, d->vi_dst.width, weights, &transposed_weights);
 
         d->weights_h_left_idx = calloc(ceil_n(d->vi_dst.width, 8), sizeof (int));
@@ -637,7 +639,7 @@ static void initialize_descale_data(struct DescaleData *d)
         double *multiplied_weights;
         double *lower;
 
-        scaling_weights(d->mode, d->support, d->vi_dst.height, d->vi_src.height, d->param1, d->param2, d->shift_v, &weights);
+        scaling_weights(d->mode, d->support, d->vi_dst.height, d->vi_src.height, d->param1, d->param2, d->shift_v, d->active_height, &weights);
         transpose_matrix(d->vi_src.height, d->vi_dst.height, weights, &transposed_weights);
 
         d->weights_v_left_idx = calloc(ceil_n(d->vi_dst.height, 8), sizeof (int));
@@ -838,6 +840,14 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     if (err)
         d.shift_v = 0;
 
+    d.active_width = vsapi->propGetFloat(in, "src_width", 0, &err);
+    if (err)
+        d.active_width = d.vi_dst.width;
+
+    d.active_height = vsapi->propGetFloat(in, "src_height", 0, &err);
+    if (err)
+        d.active_height = d.vi_dst.height;
+
     if (d.vi_dst.width < 1) {
         vsapi->setError(out, "Descale: width must be greater than 0.");
         vsapi->freeNode(d.node);
@@ -961,7 +971,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "width:int;"
             "height:int;"
             "src_left:float:opt;"
-            "src_top:float:opt",
+            "src_top:float:opt;"
+            "src_width:float:opt;"
+            "src_height:float:opt",
             descale_create, (void *)(bilinear), plugin);
 
     register_func("Debicubic",
@@ -971,7 +983,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "b:float:opt;"
             "c:float:opt;"
             "src_left:float:opt;"
-            "src_top:float:opt",
+            "src_top:float:opt;"
+            "src_width:float:opt;"
+            "src_height:float:opt",
             descale_create, (void *)(bicubic), plugin);
 
     register_func("Delanczos",
@@ -980,7 +994,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "height:int;"
             "taps:int:opt;"
             "src_left:float:opt;"
-            "src_top:float:opt",
+            "src_top:float:opt;"
+            "src_width:float:opt;"
+            "src_height:float:opt",
             descale_create, (void *)(lanczos), plugin);
 
     register_func("Despline16",
@@ -988,7 +1004,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "width:int;"
             "height:int;"
             "src_left:float:opt;"
-            "src_top:float:opt",
+            "src_top:float:opt;"
+            "src_width:float:opt;"
+            "src_height:float:opt",
             descale_create, (void *)(spline16), plugin);
 
     register_func("Despline36",
@@ -996,7 +1014,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "width:int;"
             "height:int;"
             "src_left:float:opt;"
-            "src_top:float:opt",
+            "src_top:float:opt;"
+            "src_width:float:opt;"
+            "src_height:float:opt",
             descale_create, (void *)(spline36), plugin);
 
     register_func("Despline64",
@@ -1004,6 +1024,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "width:int;"
             "height:int;"
             "src_left:float:opt;"
-            "src_top:float:opt",
+            "src_top:float:opt;"
+            "src_width:float:opt;"
+            "src_height:float:opt",
             descale_create, (void *)(spline64), plugin);
 }
