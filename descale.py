@@ -1,29 +1,28 @@
-from vapoursynth import core, GRAYS, RGBS, GRAY, YUV, RGB  # You need Vapoursynth R37 or newer
-from functools import partial
+from vapoursynth import core, GRAYS, RGBS, GRAY, YUV, RGB
 
 
 # If yuv444 is True chroma will be upscaled instead of downscaled
 # If gray is True the output will be grayscale
 def Debilinear(src, width, height, yuv444=False, gray=False, chromaloc=None):
-    return Descale(src, width, height, kernel='bilinear', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
+    return Descale(src, width, height, kernel='bilinear', taps=None, b=None, c=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Debicubic(src, width, height, b=0.0, c=0.5, yuv444=False, gray=False, chromaloc=None):
-    return Descale(src, width, height, kernel='bicubic', b=b, c=c, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
+    return Descale(src, width, height, kernel='bicubic', taps=None, b=b, c=c, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Delanczos(src, width, height, taps=3, yuv444=False, gray=False, chromaloc=None):
-    return Descale(src, width, height, kernel='lanczos', b=None, c=None, taps=taps, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
+    return Descale(src, width, height, kernel='lanczos', taps=taps, b=None, c=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Despline16(src, width, height, yuv444=False, gray=False, chromaloc=None):
-    return Descale(src, width, height, kernel='spline16', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
+    return Descale(src, width, height, kernel='spline16', taps=None, b=None, c=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Despline36(src, width, height, yuv444=False, gray=False, chromaloc=None):
-    return Descale(src, width, height, kernel='spline36', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
+    return Descale(src, width, height, kernel='spline36', taps=None, b=None, c=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 def Despline64(src, width, height, yuv444=False, gray=False, chromaloc=None):
-    return Descale(src, width, height, kernel='spline64', b=None, c=None, taps=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
+    return Descale(src, width, height, kernel='spline64', taps=None, b=None, c=None, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 
-def Descale(src, width, height, kernel='bilinear', b=0.0, c=0.5, taps=3, yuv444=False, gray=False, chromaloc=None):
+def Descale(src, width, height, kernel='bilinear', taps=3, b=0.0, c=0.5, yuv444=False, gray=False, chromaloc=None):
     src_f = src.format
     src_cf = src_f.color_family
     src_st = src_f.sample_type
@@ -31,13 +30,11 @@ def Descale(src, width, height, kernel='bilinear', b=0.0, c=0.5, taps=3, yuv444=
     src_sw = src_f.subsampling_w
     src_sh = src_f.subsampling_h
 
-    descale_filter = get_filter(b, c, taps, kernel)
-
     if src_cf == RGB and not gray:
-        rgb = descale_filter(to_rgbs(src), width, height)
+        rgb = to_rgbs(src).descale.Descale(width, height, kernel, taps, b, c)
         return rgb.resize.Point(format=src_f.id)
 
-    y = descale_filter(to_grays(src), width, height)
+    y = to_rgbs(src).descale.Descale(width, height, kernel, taps, b, c)
     y_f = core.register_format(GRAY, src_st, src_bits, 0, 0)
     y = y.resize.Point(format=y_f.id)
 
@@ -65,21 +62,3 @@ def to_rgbs(src):
 
 def get_plane(src, plane):
     return core.std.ShufflePlanes(src, plane, GRAY)
-
-
-def get_filter(b, c, taps, kernel):
-    kernel = kernel.lower()
-    if kernel == 'bilinear':
-        return core.descale.Debilinear
-    elif kernel == 'bicubic':
-        return partial(core.descale.Debicubic, b=b, c=c)
-    elif kernel == 'lanczos':
-        return partial(core.descale.Delanczos, taps=taps)
-    elif kernel == 'spline16':
-        return core.descale.Despline16
-    elif kernel == 'spline36':
-        return core.descale.Despline36
-    elif kernel == 'spline64':
-        return core.descale.Despline64
-    else:
-        raise ValueError('Descale: Invalid kernel specified.')

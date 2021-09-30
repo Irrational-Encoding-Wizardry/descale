@@ -4,8 +4,8 @@ VapourSynth plugin to undo upscaling.
 
 ## Usage
 
-The plugin itself only supports GrayS, RGBS, and YUV444PS input.
-The included python wrapper supports YUV (every subsampling), Gray, and RGB of every bitdepth.
+The plugin itself supports every constant input format. If the format is subsampled, left-aligned chroma planes are always assumed.
+The included python wrapper, contrary to using the plugin directly, doesn't descale the chroma planes but scales them normally with `Spline36`.
 
 ```
 descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
@@ -19,6 +19,8 @@ descale.Despline16(clip src, int width, int height, float src_left=0.0, float sr
 descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
 
 descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+
+descale.Descale(clip src, int width, int height, str kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
 ```
 
 ## How does this work?

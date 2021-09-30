@@ -1,10 +1,23 @@
 /* 
- * Copyright © 2020 Frechdachs <frechdachs@rekt.cc>
- * This program is free software. It comes without any warranty, to
- * the extent permitted by applicable law. You can redistribute it
- * and/or modify it under the terms of the Do What The Fuck You Want
- * To Public License, Version 2, as published by Sam Hocevar.
- * See the COPYING file for more details.
+ * Copyright © 2017-2021 Frechdachs <frechdachs@rekt.cc>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the “Software”), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 
@@ -13,7 +26,6 @@
 
 #include <stdlib.h>
 #include <immintrin.h>
-#include <vapoursynth/VSHelper.h>
 #include "common.h"
 #include "x86/descale_avx2.h"
 
@@ -54,7 +66,7 @@ static inline __attribute__((always_inline)) void mm256_transpose8_ps(__m256 *ro
 
 
 // Taken from zimg https://github.com/sekrit-twc/zimg
-static inline __attribute__((always_inline)) void transpose_line_8x8_ps(float * VS_RESTRICT dst, const float * VS_RESTRICT src, int src_stride, int left, int right)
+static inline __attribute__((always_inline)) void transpose_line_8x8_ps(float * restrict dst, const float * restrict src, int src_stride, int left, int right)
 {
     for (int j = left; j < right; j += 8) {
         __m256 x0, x1, x2, x3, x4, x5, x6, x7;
@@ -89,11 +101,11 @@ static inline __attribute__((always_inline)) void transpose_line_8x8_ps(float * 
  * It is faster than the generalized version, because it uses much
  * less load/store instructions.
  */
-static void process_line8_h_b3_avx2(int width, int current_height, int *current_width, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                    int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT lower, float * VS_RESTRICT upper, float * VS_RESTRICT diagonal,
-                                    const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp, float * VS_RESTRICT temp)
+static void process_line8_h_b3_avx2(int width, int current_width, int current_height, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                    int weights_columns, float * restrict weights, float * restrict lower, float * restrict upper, float * restrict diagonal,
+                                    int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp, float * restrict temp)
 {
-    transpose_line_8x8_ps(temp, srcp, src_stride, 0, ceil_n(*current_width, 8));
+    transpose_line_8x8_ps(temp, srcp, src_stride, 0, ceil_n(current_width, 8));
     __m256 x0, x1, x2, x3, x4, x5, x6, x7;
     __m256 a0, a1, lo, up, di, x_last;
     x_last = _mm256_setzero_ps();
@@ -204,11 +216,11 @@ static void process_line8_h_b3_avx2(int width, int current_height, int *current_
  * It is faster than the generalized version, because it uses much
  * less load/store instructions.
  */
-static void process_line8_h_b7_avx2(int width, int current_height, int *current_width, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                    int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
-                                    float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp, float * VS_RESTRICT temp)
+static void process_line8_h_b7_avx2(int width, int current_width, int current_height, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                    int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
+                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp, float * restrict temp)
 {
-    transpose_line_8x8_ps(temp, srcp, src_stride, 0, ceil_n(*current_width, 8));
+    transpose_line_8x8_ps(temp, srcp, src_stride, 0, ceil_n(current_width, 8));
     __m256 x0, x1, x2, x3, x4, x5, x6, x7;
     __m256 a0, a1, lo, up, di, x_last0, x_last1, x_last2;
     x_last0 = _mm256_setzero_ps();
@@ -354,16 +366,16 @@ static void process_line8_h_b7_avx2(int width, int current_height, int *current_
  * so this general implementation just stores values immediately
  * and loads them again when needed.
 */
-static void process_line8_h_avx2(int width, int current_height, int *current_width, int bandwidth, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                 int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
-                                 float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp, float * VS_RESTRICT temp)
+static void process_line8_h_avx2(int width, int current_width, int current_height, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                 int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
+                                 float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp, float * restrict temp)
 {
     __m256 x0, x1, x2, x3, x4, x5, x6, x7;
     __m256 a0, a1, lo, up, di, x_last;
     int start;
     int c = bandwidth / 2;
     x_last = _mm256_setzero_ps();
-    transpose_line_8x8_ps(temp, srcp, src_stride, 0, ceil_n(*current_width, 8));
+    transpose_line_8x8_ps(temp, srcp, src_stride, 0, ceil_n(current_width, 8));
 
     for (int j = 0; j < width; j += 8) {
         x0 = _mm256_setzero_ps();
@@ -395,7 +407,7 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
 #undef MATMULT
 
 #define SOLVESTOREF(x, lo, di, c, start, j, m)\
-        start = VSMAX(0, j + m - c);\
+        start = DSMAX(0, j + m - c);\
         for (int k = start; k < (j + m); k++) {\
             lo = _mm256_set1_ps(lower[k - j - m + c][j + m]);\
             x_last = _mm256_load_ps(dstp + (k % 8) * dst_stride + j - 8 * ((j + m) / 8 - k / 8));\
@@ -422,7 +434,7 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
 
 #define SOLVESTOREB(x, up, c, start, j, m)\
         x = _mm256_load_ps(dstp + m * dst_stride + j);\
-        start = VSMIN(width - 1, j + m + c);\
+        start = DSMIN(width - 1, j + m + c);\
         for (int k = start; k > (j + m); k--) {\
             up = _mm256_set1_ps(upper[k - j - m - 1][j + m]);\
             x_last = _mm256_load_ps(dstp + (k % 8) * dst_stride + j + 8 * (k / 8 - (j + m) / 8));\
@@ -466,16 +478,16 @@ static void process_line8_h_avx2(int width, int current_height, int *current_wid
 }
 
 
-void process_plane_h_b3_avx2(int width, int current_height, int *current_width, int bandwidth, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                    int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
-                                    float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
+static void process_plane_h_b3_avx2(int width, int current_width, int current_height, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                    int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
+                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
 {
-    float * VS_RESTRICT temp;
-    VS_ALIGNED_MALLOC(&temp, ceil_n(*current_width, 8) * 8 * sizeof (float), 32);
+    float *temp;
+    descale_aligned_malloc((void **)(&temp), ceil_n(current_width, 8) * 8 * sizeof (float), 32);
 
     for (int i = 0; i < floor_n(current_height, 8); i += 8) {
 
-        process_line8_h_b3_avx2(width, current_height, current_width, weights_left_idx, weights_right_idx, weights_columns, weights,
+        process_line8_h_b3_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
                                 lower[0], upper[0], diagonal, src_stride, dst_stride, srcp, dstp, temp);
 
         srcp += src_stride * 8;
@@ -487,25 +499,24 @@ void process_plane_h_b3_avx2(int width, int current_height, int *current_width, 
         srcp -= src_stride * (8 - (current_height - floor_n(current_height, 8)));
         dstp -= dst_stride * (8 - (current_height - floor_n(current_height, 8)));
 
-        process_line8_h_b3_avx2(width, current_height, current_width, weights_left_idx, weights_right_idx, weights_columns, weights,
+        process_line8_h_b3_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
                                 lower[0], upper[0], diagonal, src_stride, dst_stride, srcp, dstp, temp);
     }
 
-    VS_ALIGNED_FREE(temp);
-    *current_width = width;
+    descale_aligned_free(temp);
 }
 
 
-void process_plane_h_b7_avx2(int width, int current_height, int *current_width, int bandwidth, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                    int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
-                                    float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
+static void process_plane_h_b7_avx2(int width, int current_width, int current_height, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                    int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
+                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
 {
-    float * VS_RESTRICT temp;
-    VS_ALIGNED_MALLOC(&temp, ceil_n(*current_width, 8) * 8 * sizeof (float), 32);
+    float *temp;
+    descale_aligned_malloc((void **)(&temp), ceil_n(current_width, 8) * 8 * sizeof (float), 32);
 
     for (int i = 0; i < floor_n(current_height, 8); i += 8) {
 
-        process_line8_h_b7_avx2(width, current_height, current_width, weights_left_idx, weights_right_idx, weights_columns, weights,
+        process_line8_h_b7_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
                                 lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
 
         srcp += src_stride * 8;
@@ -517,26 +528,25 @@ void process_plane_h_b7_avx2(int width, int current_height, int *current_width, 
         srcp -= src_stride * (8 - (current_height - floor_n(current_height, 8)));
         dstp -= dst_stride * (8 - (current_height - floor_n(current_height, 8)));
 
-        process_line8_h_b7_avx2(width, current_height, current_width, weights_left_idx, weights_right_idx, weights_columns, weights,
+        process_line8_h_b7_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
                                 lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
     }
 
-    VS_ALIGNED_FREE(temp);
-    *current_width = width;
+    descale_aligned_free(temp);
 }
 
 
-void process_plane_h_avx2(int width, int current_height, int *current_width, int bandwidth, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                 int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
-                                 float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
+static void process_plane_h_avx2(int width, int current_width, int current_height, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                 int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
+                                 float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
 {
-    float * VS_RESTRICT temp;
-    VS_ALIGNED_MALLOC(&temp, ceil_n(*current_width, 8) * 8 * sizeof (float), 32);
+    float *temp;
+    descale_aligned_malloc((void **)(&temp), ceil_n(current_width, 8) * 8 * sizeof (float), 32);
 
     for (int i = 0; i < floor_n(current_height, 8); i += 8) {
 
-        process_line8_h_avx2(width, current_height, current_width, bandwidth, weights_left_idx, weights_right_idx, weights_columns, weights,
-                                lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
+        process_line8_h_avx2(width, current_width, current_height, bandwidth, weights_left_idx, weights_right_idx, weights_columns, weights,
+                             lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
 
         srcp += src_stride * 8;
         dstp += dst_stride * 8;
@@ -547,12 +557,11 @@ void process_plane_h_avx2(int width, int current_height, int *current_width, int
         srcp -= src_stride * (8 - (current_height - floor_n(current_height, 8)));
         dstp -= dst_stride * (8 - (current_height - floor_n(current_height, 8)));
 
-        process_line8_h_avx2(width, current_height, current_width, bandwidth, weights_left_idx, weights_right_idx, weights_columns, weights,
-                                lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
+        process_line8_h_avx2(width, current_width, current_height, bandwidth, weights_left_idx, weights_right_idx, weights_columns, weights,
+                             lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
     }
 
-    VS_ALIGNED_FREE(temp);
-    *current_width = width;
+    descale_aligned_free(temp);
 }
 
 
@@ -564,12 +573,12 @@ void process_plane_h_avx2(int width, int current_height, int *current_width, int
  * a worse memory acess pattern, and is actually slower than using
  * additional load/store instructions.
  */
-void process_plane_v_b3_avx2(int height, int current_width, int *current_height, int bandwidth, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                    int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower2, float * VS_RESTRICT * VS_RESTRICT upper2,
-float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
+static void process_plane_v_b3_avx2(int height, int current_height, int current_width, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                    int weights_columns, float * restrict weights, float * restrict * restrict lower2, float * restrict * restrict upper2,
+                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
 {
-    float * VS_RESTRICT lower = lower2[0];
-    float * VS_RESTRICT upper = upper2[0];
+    float * restrict lower = lower2[0];
+    float * restrict upper = upper2[0];
     __m256 x, a0, a1, lo, up, di, x_last;
     for (int i = 0; i < height; i++) {
 
@@ -607,8 +616,6 @@ float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const 
             _mm256_store_ps(dstp + i * dst_stride + j, x);
         }
     }
-
-    *current_height = height;
 }
 
 
@@ -620,9 +627,9 @@ float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const 
  * a worse memory acess pattern, and is actually slower than using
  * additional load/store instructions.
  */
-void process_plane_v_b7_avx2(int height, int current_width, int *current_height, int bandwidth, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                    int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
-                                    float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
+static void process_plane_v_b7_avx2(int height, int current_height, int current_width, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                    int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
+                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
 {
     __m256 x, a0, a1, lo, up, di, x_last;
 
@@ -697,17 +704,15 @@ void process_plane_v_b7_avx2(int height, int current_width, int *current_height,
             _mm256_store_ps(dstp + i * dst_stride + j, x);
         }
     }
-
-    *current_height = height;
 }
 
 
 /*
  * General version of the vertical solver.
  */
-void process_plane_v_avx2(int height, int current_width, int *current_height, int bandwidth, int * VS_RESTRICT weights_left_idx, int * VS_RESTRICT weights_right_idx,
-                                 int weights_columns, float * VS_RESTRICT weights, float * VS_RESTRICT * VS_RESTRICT lower, float * VS_RESTRICT * VS_RESTRICT upper,
-                                 float * VS_RESTRICT diagonal, const int src_stride, const int dst_stride, const float * VS_RESTRICT srcp, float * VS_RESTRICT dstp)
+static void process_plane_v_avx2(int height, int current_height, int current_width, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+                                 int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
+                                 float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
 {
     __m256 x, a0, a1, lo, up, di, x_last;
     int start;
@@ -725,7 +730,7 @@ void process_plane_v_avx2(int height, int current_width, int *current_height, in
             }
 
             // Solve LD y = A' b
-            start = VSMAX(0, i - c);
+            start = DSMAX(0, i - c);
             for (int k = start; k < i; k++) {
                 lo = _mm256_set1_ps(lower[k - i + c][i]);
                 x_last = _mm256_load_ps(dstp + k * dst_stride + j);
@@ -742,7 +747,7 @@ void process_plane_v_avx2(int height, int current_width, int *current_height, in
         for (int j = 0; j < current_width; j += 8) {
 
             x = _mm256_load_ps(dstp + i * dst_stride + j);
-            start = VSMIN(height - 1, i + c);
+            start = DSMIN(height - 1, i + c);
             for (int k = start; k > i; k--) {
                 up = _mm256_set1_ps(upper[k - i - 1][i]);
                 x_last = _mm256_load_ps(dstp + k * dst_stride + j);
@@ -751,7 +756,34 @@ void process_plane_v_avx2(int height, int current_width, int *current_height, in
             _mm256_store_ps(dstp + i * dst_stride + j, x);
         }
     }
-
-    *current_height = height;
 }
+
+
+void descale_process_vectors_avx2(struct DescaleCore *core, enum DescaleDir dir, int vector_count,
+                                  int src_stride, int dst_stride, const float *srcp, float *dstp)
+{
+    if (dir == DESCALE_DIR_HORIZONTAL) {
+        if (core->bandwidth == 3)
+            process_plane_h_b3_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
+                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+        else if (core->bandwidth == 7)
+            process_plane_h_b7_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
+                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+        else
+            process_plane_h_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
+                                 core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+    } else {
+        if (core->bandwidth == 3)
+            process_plane_v_b3_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
+                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+        else if (core->bandwidth == 7)
+            process_plane_v_b7_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
+                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+        else
+            process_plane_v_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
+                                 core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+    }
+}
+
+
 #endif  // DESCALE_X86

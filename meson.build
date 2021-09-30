@@ -1,12 +1,16 @@
 project('Descale', 'c',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c99'],
     meson_version: '>=0.51.0',
-    version: '6'
+    version: '7'
 )
+
+add_global_arguments(['-D_XOPEN_SOURCE=700'], language: 'c')
 
 cc = meson.get_compiler('c')
 
-sources = ['src/descale.c']
+includedirs = ['include', 'src']
+
+sources = ['src/descale.c', 'src/vsplugin.c']
 
 libs = []
 
@@ -18,14 +22,15 @@ deps = []
 # are enough.
 if host_machine.system() == 'windows'
     # Statically link things on Windows.
-    deps += cc.find_library('m', static: true, required: false)
-    deps += cc.find_library('winpthread', static: true)
+    m_dep = cc.find_library('m', static: true, required: false)
+    p_dep = cc.find_library('winpthread', static: true)
+    deps += [m_dep, p_dep]
     installdir = join_paths(get_option('libdir'), 'vapoursynth')
 else
-    deps += cc.find_library('m', required: false)
-    deps += cc.find_library('pthread')
+    m_dep = cc.find_library('m', required: false)
+    p_dep = cc.find_library('pthread')
     vs = dependency('vapoursynth').partial_dependency(compile_args: true, includes: true)
-    deps += vs
+    deps += [m_dep, p_dep, vs]
     installdir = join_paths(vs.get_pkgconfig_variable('libdir'), 'vapoursynth')
 endif
 
@@ -35,17 +40,17 @@ if host_machine.cpu_family().startswith('x86')
     sources += ['src/x86/cpuinfo_x86.c']
 
     libs += static_library('descale_avx2', 'src/x86/descale_avx2.c',
-                dependencies: deps,
+                dependencies: [m_dep],
                 c_args: ['-mavx2', '-mfma'],
                 pic: true,
-                include_directories: 'src'
+                include_directories: includedirs
             )
 endif
 
 
 shared_module('descale', sources,
     dependencies: deps,
-    include_directories: 'src',
+    include_directories: includedirs,
     link_with: libs,
     name_prefix: 'lib',
     install: true,
