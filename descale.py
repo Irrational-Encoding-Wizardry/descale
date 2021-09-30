@@ -34,7 +34,7 @@ def Descale(src, width, height, kernel='bilinear', taps=3, b=0.0, c=0.5, yuv444=
         rgb = to_rgbs(src).descale.Descale(width, height, kernel, taps, b, c)
         return rgb.resize.Point(format=src_f.id)
 
-    y = to_rgbs(src).descale.Descale(width, height, kernel, taps, b, c)
+    y = to_grays(src).descale.Descale(width, height, kernel, taps, b, c)
     y_f = core.register_format(GRAY, src_st, src_bits, 0, 0)
     y = y.resize.Point(format=y_f.id)
 
