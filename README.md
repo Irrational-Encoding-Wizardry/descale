@@ -8,19 +8,19 @@ The plugin itself supports every constant input format. If the format is subsamp
 The included python wrapper, contrary to using the plugin directly, doesn't descale the chroma planes but scales them normally with `Spline36`.
 
 ```
-descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 
-descale.Debicubic(clip src, int width, int height, float b=0.0, float c=0.5, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+descale.Debicubic(clip src, int width, int height, float b=0.0, float c=0.5, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 
-descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 
-descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 
-descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 
-descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 
-descale.Descale(clip src, int width, int height, str kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height)
+descale.Descale(clip src, int width, int height, str kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 ```
 
 ## How does this work?

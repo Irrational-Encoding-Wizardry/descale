@@ -213,6 +213,17 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     if (err)
         d.dd.active_height = (double)d.dd.dst_height;
 
+    DescaleOpt opt_enum;
+    int opt = int64ToIntS(vsapi->propGetInt(in, "opt", 0, &err));
+    if (err)
+        opt = 0;
+    if (opt == 1)
+        opt_enum = DESCALE_OPT_NONE;
+    else if (opt == 2)
+        opt_enum = DESCALE_OPT_AVX2;
+    else
+        opt_enum = DESCALE_OPT_AUTO;
+
     if (d.dd.dst_width < 1) {
         vsapi->setError(out, "Descale: width must be greater than 0.");
         vsapi->freeNode(d.node);
@@ -329,6 +340,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         vsapi->propSetFloat(map1, "src_top", d.dd.shift_v, paReplace);
         vsapi->propSetFloat(map1, "src_width", d.dd.active_width, paReplace);
         vsapi->propSetFloat(map1, "src_height", d.dd.active_height, paReplace);
+        vsapi->propSetInt(map1, "opt", (int)opt_enum, paReplace);
         map2 = vsapi->invoke(descale_plugin, "Descale", map1);
         vsapi->freeNode(tmp_node);
         vsapi->freeMap(map1);
@@ -363,7 +375,8 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         return;
     }
 
-    d.dd.dsapi = get_descale_api(DESCALE_OPT_AUTO);
+
+    d.dd.dsapi = get_descale_api(opt_enum);
     d.initialized = false;
     pthread_mutex_init(&d.lock, NULL);
 
@@ -385,7 +398,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "src_left:float:opt;"
             "src_top:float:opt;"
             "src_width:float:opt;"
-            "src_height:float:opt",
+            "src_height:float:opt;"
+            "opt:int:opt",
             descale_create, (void *)(DESCALE_MODE_BILINEAR), plugin);
 
     register_func("Debicubic",
@@ -397,7 +411,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "src_left:float:opt;"
             "src_top:float:opt;"
             "src_width:float:opt;"
-            "src_height:float:opt",
+            "src_height:float:opt;"
+            "opt:int:opt",
             descale_create, (void *)(DESCALE_MODE_BICUBIC), plugin);
 
     register_func("Delanczos",
@@ -408,7 +423,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "src_left:float:opt;"
             "src_top:float:opt;"
             "src_width:float:opt;"
-            "src_height:float:opt",
+            "src_height:float:opt;"
+            "opt:int:opt",
             descale_create, (void *)(DESCALE_MODE_LANCZOS), plugin);
 
     register_func("Despline16",
@@ -418,7 +434,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "src_left:float:opt;"
             "src_top:float:opt;"
             "src_width:float:opt;"
-            "src_height:float:opt",
+            "src_height:float:opt;"
+            "opt:int:opt",
             descale_create, (void *)(DESCALE_MODE_SPLINE16), plugin);
 
     register_func("Despline36",
@@ -428,7 +445,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "src_left:float:opt;"
             "src_top:float:opt;"
             "src_width:float:opt;"
-            "src_height:float:opt",
+            "src_height:float:opt;"
+            "opt:int:opt",
             descale_create, (void *)(DESCALE_MODE_SPLINE36), plugin);
 
     register_func("Despline64",
@@ -438,7 +456,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "src_left:float:opt;"
             "src_top:float:opt;"
             "src_width:float:opt;"
-            "src_height:float:opt",
+            "src_height:float:opt;"
+            "opt:int:opt",
             descale_create, (void *)(DESCALE_MODE_SPLINE64), plugin);
 
     register_func("Descale",
@@ -452,6 +471,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin config_func, VSRegist
             "src_left:float:opt;"
             "src_top:float:opt;"
             "src_width:float:opt;"
-            "src_height:float:opt",
+            "src_height:float:opt;"
+            "opt:int:opt",
             descale_create, NULL, plugin);
 }
