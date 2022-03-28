@@ -73,7 +73,7 @@ static void banded_ldlt_decomposition(int n, int bandwidth, double *matrix)
 
         double e = 1.0 / (matrix[i * n + i] + eps);
         for (int j = 1; j < end; j++) {
-                matrix[i * n + i + j] *= e;
+            matrix[i * n + i + j] *= e;
         }
     }
 }
@@ -524,7 +524,7 @@ static void process_plane_v_c(int height, int current_height, int current_width,
 
 
 static void descale_process_vectors_c(struct DescaleCore *core, enum DescaleDir dir, int vector_count,
-                            int src_stride, int dst_stride, const float *srcp, float *dstp)
+                                      int src_stride, int dst_stride, const float *srcp, float *dstp)
 {
     if (dir == DESCALE_DIR_HORIZONTAL) {
         if (core->bandwidth == 3)

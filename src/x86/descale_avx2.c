@@ -480,11 +480,8 @@ static void process_line8_h_avx2(int width, int current_width, int current_heigh
 
 static void process_plane_h_b3_avx2(int width, int current_width, int current_height, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
                                     int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
-                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
+                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp, float * restrict temp)
 {
-    float *temp;
-    descale_aligned_malloc((void **)(&temp), ceil_n(current_width, 8) * 8 * sizeof (float), 32);
-
     for (int i = 0; i < floor_n(current_height, 8); i += 8) {
 
         process_line8_h_b3_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
@@ -502,18 +499,13 @@ static void process_plane_h_b3_avx2(int width, int current_width, int current_he
         process_line8_h_b3_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
                                 lower[0], upper[0], diagonal, src_stride, dst_stride, srcp, dstp, temp);
     }
-
-    descale_aligned_free(temp);
 }
 
 
 static void process_plane_h_b7_avx2(int width, int current_width, int current_height, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
                                     int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
-                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
+                                    float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp, float * restrict temp)
 {
-    float *temp;
-    descale_aligned_malloc((void **)(&temp), ceil_n(current_width, 8) * 8 * sizeof (float), 32);
-
     for (int i = 0; i < floor_n(current_height, 8); i += 8) {
 
         process_line8_h_b7_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
@@ -531,18 +523,13 @@ static void process_plane_h_b7_avx2(int width, int current_width, int current_he
         process_line8_h_b7_avx2(width, current_width, current_height, weights_left_idx, weights_right_idx, weights_columns, weights,
                                 lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
     }
-
-    descale_aligned_free(temp);
 }
 
 
 static void process_plane_h_avx2(int width, int current_width, int current_height, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
                                  int weights_columns, float * restrict weights, float * restrict * restrict lower, float * restrict * restrict upper,
-                                 float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp)
+                                 float * restrict diagonal, int src_stride, int dst_stride, const float * restrict srcp, float * restrict dstp, float * restrict temp)
 {
-    float *temp;
-    descale_aligned_malloc((void **)(&temp), ceil_n(current_width, 8) * 8 * sizeof (float), 32);
-
     for (int i = 0; i < floor_n(current_height, 8); i += 8) {
 
         process_line8_h_avx2(width, current_width, current_height, bandwidth, weights_left_idx, weights_right_idx, weights_columns, weights,
@@ -560,8 +547,6 @@ static void process_plane_h_avx2(int width, int current_width, int current_heigh
         process_line8_h_avx2(width, current_width, current_height, bandwidth, weights_left_idx, weights_right_idx, weights_columns, weights,
                              lower, upper, diagonal, src_stride, dst_stride, srcp, dstp, temp);
     }
-
-    descale_aligned_free(temp);
 }
 
 
@@ -763,15 +748,22 @@ void descale_process_vectors_avx2(struct DescaleCore *core, enum DescaleDir dir,
                                   int src_stride, int dst_stride, const float *srcp, float *dstp)
 {
     if (dir == DESCALE_DIR_HORIZONTAL) {
+        float *temp;
+
+        descale_aligned_malloc((void **)(&temp), ceil_n(core->src_dim, 8) * 8 * sizeof (float), 32);
+
         if (core->bandwidth == 3)
             process_plane_h_b3_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
-                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp, temp);
         else if (core->bandwidth == 7)
             process_plane_h_b7_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
-                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+                                    core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp, temp);
         else
             process_plane_h_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
-                                 core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
+                                 core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp, temp);
+
+        descale_aligned_free(temp);
+
     } else {
         if (core->bandwidth == 3)
             process_plane_v_b3_avx2(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,

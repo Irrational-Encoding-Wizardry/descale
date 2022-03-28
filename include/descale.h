@@ -77,14 +77,13 @@ typedef struct DescaleCore
 } DescaleCore;
 
 
-struct DescaleAPI
+typedef struct DescaleAPI
 {
-    // is __stdcall needed for win32?
     struct DescaleCore *(*create_core)(int src_dim, int dst_dim, struct DescaleParams *params);
     void (*free_core)(struct DescaleCore *core);
     void (*process_vectors)(struct DescaleCore *core, enum DescaleDir dir, int vector_count,
                             int src_stride, int dst_stride, const float *srcp, float *dstp);
-};
+} DescaleAPI;
 
 
 struct DescaleAPI get_descale_api(enum DescaleOpt opt);
