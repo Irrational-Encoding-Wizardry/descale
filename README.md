@@ -1,10 +1,12 @@
 # Descale
 
-VapourSynth plugin to undo upscaling.
+Video/Image filter to undo upscaling.
+
+Includes a VapourSynth and Avisynth+ plugin
 
 ## Usage
 
-The plugin itself supports every constant input format. If the format is subsampled, left-aligned chroma planes are always assumed.
+The VapourSynth plugin itself supports every constant input format. If the format is subsampled, left-aligned chroma planes are always assumed.
 The included python wrapper, contrary to using the plugin directly, doesn't descale the chroma planes but scales them normally with `Spline36`.
 
 ```
@@ -23,6 +25,8 @@ descale.Despline64(clip src, int width, int height, float src_left=0.0, float sr
 descale.Descale(clip src, int width, int height, str kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int opt=0)
 ```
 
+The AviSynth+ plugin is used similarly, but without the `descale` namespace.
+
 ## How does this work?
 
 Resampling can be described as `A x = b`.
@@ -33,7 +37,7 @@ To do this, we extend the equation with the transpose of A: `A' A x = A' b`.
 
 `A' A` is now a banded symmetrical m x m matrix and `A' b` is a vector with `m` elements.
 
-This enables us to use LDLT decomposition on `A' A` to get `LD L' = A' A`. LD and L are both triangular matrices.
+This enables us to use LDLT decomposition on `A' A` to get `LD L' = A' A`. `LD` and `L` are both triangular matrices.
 
 Then we solve `LD y = A' b` with forward substitution, and finally `L' x = y` with back substitution.
 
@@ -41,6 +45,9 @@ We now have the original vector `x`.
 
 
 ## Compilation
+
+By default only the VapourSynth plugin is compiled
+To build the Avisynth+ plugin, add `-Dlibtype=avisynth` or `-Dlibtype=both` to the meson command below.
 
 ### Linux
 

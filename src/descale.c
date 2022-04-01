@@ -1,5 +1,5 @@
 /* 
- * Copyright © 2017-2021 Frechdachs <frechdachs@rekt.cc>
+ * Copyright © 2017-2022 Frechdachs <frechdachs@rekt.cc>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -425,7 +425,7 @@ static void process_plane_v_b3_c(int height, int current_height, int current_wid
     }
 
     // Solve L' x = y
-    for (int i = height-2; i >= 0; i--) {
+    for (int i = height - 2; i >= 0; i--) {
         for (int j = 0; j < current_width; j++) {
             dstp[i * dst_stride + j] -= upper[i] * dstp[(i + 1) * dst_stride + j];
         }

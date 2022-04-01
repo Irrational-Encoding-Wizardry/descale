@@ -1,5 +1,5 @@
 /* 
- * Copyright © 2017-2021 Frechdachs <frechdachs@rekt.cc>
+ * Copyright © 2020-2022 Frechdachs <frechdachs@rekt.cc>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal

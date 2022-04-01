@@ -1,0 +1,1 @@
+option('libtype', type: 'combo', choices: ['vapoursynth', 'avisynth', 'both'], value: 'vapoursynth')

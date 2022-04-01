@@ -1,5 +1,5 @@
 /* 
- * Copyright © 2017-2021 Frechdachs <frechdachs@rekt.cc>
+ * Copyright © 2017-2022 Frechdachs <frechdachs@rekt.cc>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -69,30 +69,21 @@ static const VSFrame *VS_CC descale_get_frame(int n, int activation_reason, void
 
         for (int plane = 0; plane < d->dd.num_planes; plane++) {
             int src_stride = vsapi->getStride(src, plane) / sizeof (float);
+            int dst_stride = vsapi->getStride(dst, plane) / sizeof (float);
             const float *srcp = (const float *)vsapi->getReadPtr(src, plane);
+            float *dstp = (float *)vsapi->getWritePtr(dst, plane);
 
             if (d->dd.process_h && d->dd.process_v) {
                 int intermediate_stride = vsapi->getStride(intermediate, plane) / sizeof (float);
                 float *intermediatep = (float *)vsapi->getWritePtr(intermediate, plane);
 
                 d->dd.dsapi.process_vectors(d->dd.dscore_h[plane && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (plane ? d->dd.subsampling_v : 0), src_stride, intermediate_stride, srcp, intermediatep);
-
-
-                int dst_stride = vsapi->getStride(dst, plane) / sizeof (float);
-                float *dstp = (float *)vsapi->getWritePtr(dst, plane);
-
                 d->dd.dsapi.process_vectors(d->dd.dscore_v[plane && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.dst_width >> (plane ? d->dd.subsampling_h : 0), intermediate_stride, dst_stride, intermediatep, dstp);
 
             } else if (d->dd.process_h) {
-                int dst_stride = vsapi->getStride(dst, plane) / sizeof (float);
-                float *dstp = (float *)vsapi->getWritePtr(dst, plane);
-
                 d->dd.dsapi.process_vectors(d->dd.dscore_h[plane && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (plane ? d->dd.subsampling_v : 0), src_stride, dst_stride, srcp, dstp);
 
             } else if (d->dd.process_v) {
-                int dst_stride = vsapi->getStride(dst, plane) / sizeof (float);
-                float *dstp = (float *)vsapi->getWritePtr(dst, plane);
-
                 d->dd.dsapi.process_vectors(d->dd.dscore_v[plane && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.src_width >> (plane ? d->dd.subsampling_h : 0), src_stride, dst_stride, srcp, dstp);
             }
         }
@@ -207,7 +198,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     if (err)
         d.dd.active_height = (double)d.dd.dst_height;
 
-    DescaleOpt opt_enum;
+    enum DescaleOpt opt_enum;
     int opt = vsapi->mapGetIntSaturated(in, "opt", 0, &err);
     if (err)
         opt = 0;
@@ -236,8 +227,8 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         return;
     }
 
-    d.dd.process_h = d.dd.dst_width != d.dd.src_width || d.dd.shift_h != 0 || d.dd.active_width != (double)d.dd.dst_width;
-    d.dd.process_v = d.dd.dst_height != d.dd.src_height || d.dd.shift_v != 0 || d.dd.active_height != (double)d.dd.dst_height;
+    d.dd.process_h = d.dd.dst_width != d.dd.src_width || d.dd.shift_h != 0.0 || d.dd.active_width != (double)d.dd.dst_width;
+    d.dd.process_v = d.dd.dst_height != d.dd.src_height || d.dd.shift_v != 0.0 || d.dd.active_height != (double)d.dd.dst_height;
 
     char *funcname;
 

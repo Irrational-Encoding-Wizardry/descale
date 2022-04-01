@@ -1,5 +1,5 @@
 /* 
- * Copyright © 2017-2021 Frechdachs <frechdachs@rekt.cc>
+ * Copyright © 2021-2022 Frechdachs <frechdachs@rekt.cc>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the “Software”), to deal
@@ -51,14 +51,15 @@ typedef enum DescaleOpt
 } DescaleOpt;
 
 
+// Optional struct members should be initialized to 0 if not used
 typedef struct DescaleParams
 {
     enum DescaleMode mode;
-    int taps;
-    double param1;
-    double param2;
-    double shift;
-    double active_dim;
+    int taps;           // required if mode is LANCZOS
+    double param1;      // required if mode is BICUBIC
+    double param2;      // required if mode is BICUBIC
+    double shift;       // optional
+    double active_dim;  // always required; usually equal to dst_dim
 } DescaleParams;
 
 
