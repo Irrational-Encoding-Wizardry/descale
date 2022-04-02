@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <vapoursynth/VapourSynth4.h>
 #include <vapoursynth/VSHelper4.h>
@@ -40,6 +41,13 @@ struct VSDescaleData
     VSVideoInfo vi;
 
     struct DescaleData dd;
+};
+
+
+struct VSCustomKernelData
+{
+    const VSAPI *vsapi;
+    VSFunction *custom_kernel;
 };
 
 
@@ -119,7 +127,42 @@ static void VS_CC descale_free(void *instance_data, VSCore *core, const VSAPI *v
 
     pthread_mutex_destroy(&d->lock);
 
+    if (d->dd.params.mode == DESCALE_MODE_CUSTOM) {
+        struct VSCustomKernelData *kd = (struct VSCustomKernelData *)d->dd.params.custom_kernel.user_data;
+        vsapi->freeFunction(kd->custom_kernel);
+        free(kd);
+    }
+
     free(d);
+}
+
+
+static double custom_kernel_f(double x, void *user_data)
+{
+    struct VSCustomKernelData *kd = (struct VSCustomKernelData *)user_data;
+
+    VSMap *in = kd->vsapi->createMap();
+    VSMap *out = kd->vsapi->createMap();
+    kd->vsapi->mapSetFloat(in, "x", x, maReplace);
+    kd->vsapi->callFunction(kd->custom_kernel, in, out);
+    if (kd->vsapi->mapGetError(out)) {
+        fprintf(stderr, "Descale: custom kernel error: %s.\n", kd->vsapi->mapGetError(out));
+        kd->vsapi->freeMap(in);
+        kd->vsapi->freeMap(out);
+        return 0.0;
+    }
+    int err;
+    x = kd->vsapi->mapGetFloat(out, "val", 0, &err);
+    if (err)
+        x = (double)kd->vsapi->mapGetInt(out, "val", 0, &err);
+    if (err) {
+        fprintf(stderr, "Descale: custom kernel: The custom kernel function returned a value that is neither float nor int.");
+        x = 0.0;
+    }
+    kd->vsapi->freeMap(in);
+    kd->vsapi->freeMap(out);
+
+    return x;
 }
 
 
@@ -128,23 +171,45 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     struct VSDescaleData d = {0};
     struct DescaleParams params = {0};
 
+    VSFunction *custom_kernel = NULL;
     if (user_data == NULL) {
-        const char *kernel = vsapi->mapGetData(in, "kernel", 0, NULL);
-        if (string_is_equal_ignore_case(kernel, "bilinear"))
-            params.mode = DESCALE_MODE_BILINEAR;
-        else if (string_is_equal_ignore_case(kernel, "bicubic"))
-            params.mode = DESCALE_MODE_BICUBIC;
-        else if (string_is_equal_ignore_case(kernel, "lanczos"))
-            params.mode = DESCALE_MODE_LANCZOS;
-        else if (string_is_equal_ignore_case(kernel, "spline16"))
-            params.mode = DESCALE_MODE_SPLINE16;
-        else if (string_is_equal_ignore_case(kernel, "spline36"))
-            params.mode = DESCALE_MODE_SPLINE36;
-        else if (string_is_equal_ignore_case(kernel, "spline64"))
-            params.mode = DESCALE_MODE_SPLINE64;
-        else {
-            vsapi->mapSetError(out, "Descale: Invalid kernel specified.");
+        int no_kernel;
+        int no_custom_kernel;
+        const char *kernel = vsapi->mapGetData(in, "kernel", 0, &no_kernel);
+        custom_kernel = vsapi->mapGetFunction(in, "custom_kernel", 0, &no_custom_kernel);
+        if (!no_kernel && !no_custom_kernel) {
+            vsapi->mapSetError(out, "Descale: Specify either kernel or custom_kernel, but not both.");
+            vsapi->freeFunction(custom_kernel);
             return;
+        }
+        if (no_kernel && no_custom_kernel) {
+            vsapi->mapSetError(out, "Descale: Either kernel or custom_kernel must be specified.");
+            return;
+        }
+        if (!no_kernel) {
+            if (string_is_equal_ignore_case(kernel, "bilinear"))
+                params.mode = DESCALE_MODE_BILINEAR;
+            else if (string_is_equal_ignore_case(kernel, "bicubic"))
+                params.mode = DESCALE_MODE_BICUBIC;
+            else if (string_is_equal_ignore_case(kernel, "lanczos"))
+                params.mode = DESCALE_MODE_LANCZOS;
+            else if (string_is_equal_ignore_case(kernel, "spline16"))
+                params.mode = DESCALE_MODE_SPLINE16;
+            else if (string_is_equal_ignore_case(kernel, "spline36"))
+                params.mode = DESCALE_MODE_SPLINE36;
+            else if (string_is_equal_ignore_case(kernel, "spline64"))
+                params.mode = DESCALE_MODE_SPLINE64;
+            else {
+                vsapi->mapSetError(out, "Descale: Invalid kernel specified.");
+                return;
+            }
+        } else {
+            params.mode = DESCALE_MODE_CUSTOM;
+            params.custom_kernel.f = &custom_kernel_f;
+            struct VSCustomKernelData *kd = malloc(sizeof (struct VSCustomKernelData));
+            kd->vsapi = vsapi;
+            kd->custom_kernel = custom_kernel;
+            params.custom_kernel.user_data = kd;
         }
     } else {
         params.mode = (enum DescaleMode)user_data;
@@ -247,15 +312,26 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         funcname = "Debicubic";
 
         // If b != 0 Bicubic is not an interpolation filter, so force processing
-        if (params.param1 != 0) {
+        /*if (params.param1 != 0) {
             d.dd.process_h = true;
             d.dd.process_v = true;
-        }
+        }*/
+        // Leaving this check in would make it impossible to only descale a single dimension if this precondition is met.
+        // If you want to force sampling use the force/force_h/force_v paramenter of the generic Descale filter.
 
-    } else if (params.mode == DESCALE_MODE_LANCZOS) {
+    } else if (params.mode == DESCALE_MODE_LANCZOS || params.mode == DESCALE_MODE_CUSTOM) {
         params.taps = vsapi->mapGetIntSaturated(in, "taps", 0, &err);
-        if (err)
+
+        if (err && params.mode == DESCALE_MODE_CUSTOM) {
+            vsapi->mapSetError(out, "Descale: If custom_kernel is specified, then taps must also be specified.");
+            vsapi->freeFunction(custom_kernel);
+            free(params.custom_kernel.user_data);
+            vsapi->freeNode(d.node);
+            return;
+
+        } else if (err) {
             params.taps = 3;
+        }
 
         if (params.taps < 1) {
             vsapi->mapSetError(out, "Descale: taps must be greater than 0.");
@@ -276,6 +352,17 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     } else {
         funcname = "none";
     }
+
+    int force = vsapi->mapGetIntSaturated(in, "force", 0, &err);
+    int force_h = vsapi->mapGetIntSaturated(in, "force_h", 0, &err);
+    if (err)
+        force_h = force;
+    int force_v = vsapi->mapGetIntSaturated(in, "force_v", 0, &err);
+    if (err)
+        force_v = force;
+
+    d.dd.process_h = d.dd.process_h || force_h;
+    d.dd.process_v = d.dd.process_v || force_v;
 
     // Return the input clip if no processing is necessary
     if (!d.dd.process_h && !d.dd.process_v) {
@@ -318,7 +405,13 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         vsapi->mapSetNode(map1, "src", tmp_node, maReplace);
         vsapi->mapSetInt(map1, "width", d.dd.dst_width, maReplace);
         vsapi->mapSetInt(map1, "height", d.dd.dst_height, maReplace);
-        vsapi->mapSetData(map1, "kernel", funcname + 2, -1, dtUtf8, maReplace);
+        if (params.mode == DESCALE_MODE_CUSTOM) {
+            vsapi->mapSetFunction(map1, "custom_kernel", custom_kernel, maReplace);
+            vsapi->freeFunction(custom_kernel);
+            free(params.custom_kernel.user_data);
+        } else {
+            vsapi->mapSetData(map1, "kernel", funcname + 2, -1, dtUtf8, maReplace);
+        }
         vsapi->mapSetInt(map1, "taps", params.taps, maReplace);
         vsapi->mapSetFloat(map1, "b", params.param1, maReplace);
         vsapi->mapSetFloat(map1, "c", params.param2, maReplace);
@@ -326,6 +419,9 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         vsapi->mapSetFloat(map1, "src_top", d.dd.shift_v, maReplace);
         vsapi->mapSetFloat(map1, "src_width", d.dd.active_width, maReplace);
         vsapi->mapSetFloat(map1, "src_height", d.dd.active_height, maReplace);
+        vsapi->mapSetInt(map1, "force", force, maReplace);
+        vsapi->mapSetInt(map1, "force_h", force_h, maReplace);
+        vsapi->mapSetInt(map1, "force_v", force_v, maReplace);
         vsapi->mapSetInt(map1, "opt", (int)opt_enum, maReplace);
         map2 = vsapi->invoke(descale_plugin, "Descale", map1);
         vsapi->freeNode(tmp_node);
@@ -400,6 +496,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_top:float:opt;"
             "src_width:float:opt;"
             "src_height:float:opt;"
+            "force:int:opt;"
+            "force_h:int:opt;"
+            "force_v:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_BICUBIC), plugin);
@@ -413,6 +512,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_top:float:opt;"
             "src_width:float:opt;"
             "src_height:float:opt;"
+            "force:int:opt;"
+            "force_h:int:opt;"
+            "force_v:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_LANCZOS), plugin);
@@ -425,6 +527,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_top:float:opt;"
             "src_width:float:opt;"
             "src_height:float:opt;"
+            "force:int:opt;"
+            "force_h:int:opt;"
+            "force_v:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_SPLINE16), plugin);
@@ -437,6 +542,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_top:float:opt;"
             "src_width:float:opt;"
             "src_height:float:opt;"
+            "force:int:opt;"
+            "force_h:int:opt;"
+            "force_v:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_SPLINE36), plugin);
@@ -449,6 +557,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_top:float:opt;"
             "src_width:float:opt;"
             "src_height:float:opt;"
+            "force:int:opt;"
+            "force_h:int:opt;"
+            "force_v:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_SPLINE64), plugin);
@@ -457,7 +568,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src:vnode;"
             "width:int;"
             "height:int;"
-            "kernel:data;"
+            "kernel:data:opt;"
+            "custom_kernel:func:opt;"
             "taps:int:opt;"
             "b:float:opt;"
             "c:float:opt;"
@@ -465,6 +577,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_top:float:opt;"
             "src_width:float:opt;"
             "src_height:float:opt;"
+            "force:int:opt;"
+            "force_h:int:opt;"
+            "force_v:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, NULL, plugin);

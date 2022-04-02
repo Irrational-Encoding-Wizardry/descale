@@ -163,7 +163,7 @@ static inline double cube(double x)
 }
 
 
-static double calculate_weight(enum DescaleMode mode, int support, double distance, double b, double c)
+static double calculate_weight(enum DescaleMode mode, int support, double distance, double b, double c, struct DescaleCustomKernel *ck)
 {
     distance = fabs(distance);
 
@@ -221,6 +221,8 @@ static double calculate_weight(enum DescaleMode mode, int support, double distan
         } else {
             return 0.0;
         }
+    } else if (mode == DESCALE_MODE_CUSTOM) {
+        return ck->f(distance, ck->user_data);
     }
 
     return 0.0;
@@ -242,7 +244,7 @@ static double round_halfup(double x)
 
 // Most of this is taken from zimg 
 // https://github.com/sekrit-twc/zimg/blob/ce27c27f2147fbb28e417fbf19a95d3cf5d68f4f/src/zimg/resize/filter.cpp#L227
-static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int dst_dim, double param1, double param2, double shift, double active_dim, double **weights)
+static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int dst_dim, double param1, double param2, double shift, double active_dim, struct DescaleCustomKernel *ck, double **weights)
 {
     *weights = calloc(src_dim * dst_dim, sizeof (double));
     double ratio = (double)dst_dim / active_dim;
@@ -254,7 +256,7 @@ static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int
         double begin_pos = round_halfup(pos - support) + 0.5;
         for (int j = 0; j < 2 * support; j++) {
             double xpos = begin_pos + j;
-            total += calculate_weight(mode, support, xpos - pos, param1, param2);
+            total += calculate_weight(mode, support, xpos - pos, param1, param2, ck);
         }
         for (int j = 0; j < 2 * support; j++) {
             double xpos = begin_pos + j;
@@ -269,7 +271,7 @@ static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int
                 real_pos = xpos;
 
             int idx = (int)floor(real_pos);
-            (*weights)[i * src_dim + idx] += calculate_weight(mode, support, xpos - pos, param1, param2) / total;
+            (*weights)[i * src_dim + idx] += calculate_weight(mode, support, xpos - pos, param1, param2, ck) / total;
         }
     }
 }
@@ -561,17 +563,20 @@ static struct DescaleCore *create_core(int src_dim, int dst_dim, struct DescaleP
         support = 2;
     } else if (params->mode == DESCALE_MODE_LANCZOS) {
         support = params->taps;
-        if (support == 0)
-            return NULL;
     } else if (params->mode == DESCALE_MODE_SPLINE16) {
         support = 2;
     } else if (params->mode == DESCALE_MODE_SPLINE36) {
         support = 3;
     } else if (params->mode == DESCALE_MODE_SPLINE64) {
         support = 4;
+    } else if (params->mode == DESCALE_MODE_CUSTOM) {
+        support = params->taps;
     } else {
         return NULL;
     }
+
+    if (support == 0)
+        return NULL;
 
     core.src_dim = src_dim;
     core.dst_dim = dst_dim;
@@ -582,7 +587,7 @@ static struct DescaleCore *create_core(int src_dim, int dst_dim, struct DescaleP
     double *multiplied_weights;
     double *lower;
 
-    scaling_weights(params->mode, support, dst_dim, src_dim, params->param1, params->param2, params->shift, params->active_dim, &weights);
+    scaling_weights(params->mode, support, dst_dim, src_dim, params->param1, params->param2, params->shift, params->active_dim, &params->custom_kernel, &weights);
     transpose_matrix(src_dim, dst_dim, weights, &transposed_weights);
 
     core.weights_left_idx = calloc(ceil_n(dst_dim, 8), sizeof (int));

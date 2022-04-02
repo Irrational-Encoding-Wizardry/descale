@@ -1,7 +1,7 @@
 project('Descale', 'c',
     default_options: ['buildtype=release', 'b_ndebug=if-release', 'c_std=c99'],
     meson_version: '>=0.51.0',
-    version: '7'
+    version: '8'
 )
 
 add_global_arguments(['-D_XOPEN_SOURCE=700'], language: 'c')
@@ -47,12 +47,19 @@ if host_machine.system() == 'windows'
 else
     m_dep = cc.find_library('m', required: false)
     p_dep = cc.find_library('pthread')
-    vs = dependency('vapoursynth').partial_dependency(compile_args: true, includes: true)
-    deps += [m_dep, p_dep, vs]
+    deps += [m_dep, p_dep]
+    if libtype in ['vapoursynth', 'both']
+        vs = dependency('vapoursynth').partial_dependency(compile_args: true, includes: true)
+        deps += [vs]
+    endif
+    if libtype in ['avisynth', 'both']
+        avs = dependency('avisynth')
+        deps += [avs]
+    endif
     if libtype in ['vapoursynth', 'both']
         installdir = join_paths(vs.get_pkgconfig_variable('libdir'), 'vapoursynth')
     else
-        installdir = join_paths(vs.get_pkgconfig_variable('libdir'), 'avisynth')
+        installdir = join_paths(avs.get_pkgconfig_variable('libdir'), 'avisynth')
     endif
 endif
 

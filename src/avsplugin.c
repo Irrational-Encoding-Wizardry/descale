@@ -245,8 +245,7 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
         b = avs_defined(v) ? avs_as_float(v) : 0.0;
         v = avs_array_elt(args, idx++);
         c = avs_defined(v) ? avs_as_float(v) : 0.5;
-    }
-    else {
+    } else {
         b = 0.0;
         c = 0.5;
     }
@@ -263,6 +262,11 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
     bool process_h = dst_width != src_width || shift_h != 0.0 || active_width != (double)dst_width;
     bool process_v = dst_height != src_height || shift_v != 0.0 || active_height != (double)dst_height;
 
+    if (!process_h && !process_v) {
+        v = avs_new_value_clip(clip);
+        goto done;
+    }
+
     v = avs_array_elt(args, idx++);
     int opt = avs_defined(v) ? avs_as_int(v) : 0;
     enum DescaleOpt opt_enum;
@@ -277,7 +281,7 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
     if (bytes_per_pixel != 4) {
         AVS_Value c2, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11;
         c1 = avs_new_value_clip(clip);
-        //avs_release_clip(clip);  // This is apparently wrong, leaving it uncommented crashes sometimes
+        avs_release_clip(clip);
         a1 = avs_new_value_int(32);
         AVS_Value convert_args[] = {c1, a1};
         c2 = avs_invoke(env, "ConvertBits", avs_new_value_array(convert_args, 2), NULL);

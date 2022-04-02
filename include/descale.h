@@ -32,7 +32,8 @@ typedef enum DescaleMode
     DESCALE_MODE_LANCZOS  = 3,
     DESCALE_MODE_SPLINE16 = 4,
     DESCALE_MODE_SPLINE36 = 5,
-    DESCALE_MODE_SPLINE64 = 6
+    DESCALE_MODE_SPLINE64 = 6,
+    DESCALE_MODE_CUSTOM   = 7
 } DescaleMode;
 
 
@@ -51,15 +52,23 @@ typedef enum DescaleOpt
 } DescaleOpt;
 
 
+typedef struct DescaleCustomKernel
+{
+    double (*f)(double x, void *user_data);
+    void *user_data;
+} DescaleCustomKernel;
+
+
 // Optional struct members should be initialized to 0 if not used
 typedef struct DescaleParams
 {
     enum DescaleMode mode;
-    int taps;           // required if mode is LANCZOS
+    int taps;           // required if mode is LANCZOS or CUSTOM
     double param1;      // required if mode is BICUBIC
     double param2;      // required if mode is BICUBIC
     double shift;       // optional
     double active_dim;  // always required; usually equal to dst_dim
+    DescaleCustomKernel custom_kernel;  // required if mode is CUSTOM
 } DescaleParams;
 
 
