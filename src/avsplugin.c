@@ -330,6 +330,7 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
     avs_release_clip(clip);
     AVS_FilterInfo *fi;
     clip = avs_new_c_filter(env, &fi, c1, true);
+    avs_release_value(c1);
 
     fi->vi.width = dst_width;
     fi->vi.height = dst_height;
