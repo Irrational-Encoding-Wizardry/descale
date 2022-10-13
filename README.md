@@ -2,7 +2,7 @@
 
 Video/Image filter to undo upscaling.
 
-Includes a VapourSynth and Avisynth+ plugin
+Includes a VapourSynth and AviSynth+ plugin
 
 ## Usage
 
@@ -40,6 +40,10 @@ def sinc(x):
 	return 1.0 if x == 0 else math.sin(x * math.pi) / (x * math.pi)
 taps = 3
 core.descale.Descale(src, w, h, custom_kernel=lambda x: sinc(x) * sinc(x / taps), taps=taps)
+
+# You can also use the python wrapper instead of calling the plugin functions directly
+import descale
+descale.Decustom(src, w, h, lambda x: 1.0 - x, taps=1)
 ```
 
 ## How does this work?
@@ -62,7 +66,7 @@ We now have the original vector `x`.
 ## Compilation
 
 By default only the VapourSynth plugin is compiled
-To build the Avisynth+ plugin, add `-Dlibtype=avisynth` or `-Dlibtype=both` to the meson command below.
+To build the AviSynth+ plugin, add `-Dlibtype=avisynth` or `-Dlibtype=both` to the meson command below.
 
 ### Linux
 
