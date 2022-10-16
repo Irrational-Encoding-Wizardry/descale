@@ -21,7 +21,7 @@ def Despline36(src, width, height, yuv444=False, gray=False, chromaloc=None):
 def Despline64(src, width, height, yuv444=False, gray=False, chromaloc=None):
     return Descale(src, width, height, kernel='spline64', yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
-def Decustom(src, width, height, custom_kernel, taps, yuv444=False, gray=False, chromaloc=None)
+def Decustom(src, width, height, custom_kernel, taps, yuv444=False, gray=False, chromaloc=None):
     return Descale(src, width, height, custom_kernel=custom_kernel, taps=taps, yuv444=yuv444, gray=gray, chromaloc=chromaloc)
 
 
