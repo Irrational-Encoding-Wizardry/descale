@@ -24,6 +24,7 @@
 #ifndef DESCALE_H
 #define DESCALE_H
 
+#include <stdbool.h>
 
 typedef enum DescaleMode
 {
@@ -68,6 +69,7 @@ typedef struct DescaleParams
     double param2;      // required if mode is BICUBIC
     double shift;       // optional
     double active_dim;  // always required; usually equal to dst_dim
+    bool no_mirror;     // optional
     DescaleCustomKernel custom_kernel;  // required if mode is CUSTOM
 } DescaleParams;
 

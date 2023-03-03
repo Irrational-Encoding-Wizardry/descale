@@ -353,6 +353,10 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         funcname = "none";
     }
 
+    params.no_mirror = !!vsapi->mapGetInt(in, "mirror", 0, &err);
+    if (err)
+        params.no_mirror = false;
+
     int force = vsapi->mapGetIntSaturated(in, "force", 0, &err);
     int force_h = vsapi->mapGetIntSaturated(in, "force_h", 0, &err);
     if (err)
@@ -422,6 +426,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         vsapi->mapSetInt(map1, "force", force, maReplace);
         vsapi->mapSetInt(map1, "force_h", force_h, maReplace);
         vsapi->mapSetInt(map1, "force_v", force_v, maReplace);
+        vsapi->mapSetInt(map1, "mirror", !params.no_mirror, maReplace);
         vsapi->mapSetInt(map1, "opt", (int)opt_enum, maReplace);
         map2 = vsapi->invoke(descale_plugin, "Descale", map1);
         vsapi->freeNode(tmp_node);
@@ -482,6 +487,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_top:float:opt;"
             "src_width:float:opt;"
             "src_height:float:opt;"
+            "mirror:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_BILINEAR), plugin);
@@ -499,6 +505,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
+            "mirror:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_BICUBIC), plugin);
@@ -515,6 +522,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
+            "mirror:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_LANCZOS), plugin);
@@ -530,6 +538,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
+            "mirror:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_SPLINE16), plugin);
@@ -545,6 +554,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
+            "mirror:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_SPLINE36), plugin);
@@ -560,6 +570,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
+            "mirror:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, (void *)(DESCALE_MODE_SPLINE64), plugin);
@@ -580,6 +591,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
+            "mirror:int:opt;"
             "opt:int:opt;",
             "clip:vnode;",
             descale_create, NULL, plugin);
