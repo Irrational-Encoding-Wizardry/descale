@@ -353,7 +353,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         funcname = "none";
     }
 
-    params.no_mirror = !!vsapi->mapGetInt(in, "mirror", 0, &err);
+    params.no_mirror = !vsapi->mapGetInt(in, "mirror", 0, &err);
     if (err)
         params.no_mirror = false;
 
