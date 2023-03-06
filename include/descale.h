@@ -44,6 +44,13 @@ typedef enum DescaleDir
 } DescaleDir;
 
 
+typedef enum DescaleBorder
+{
+    DESCALE_BORDER_MIRROR = 0,
+    DESCALE_BORDER_ZERO   = 1
+} DescaleBorder;
+
+
 typedef enum DescaleOpt
 {
     DESCALE_OPT_AUTO = 0,
@@ -68,6 +75,7 @@ typedef struct DescaleParams
     double param2;      // required if mode is BICUBIC
     double shift;       // optional
     double active_dim;  // always required; usually equal to dst_dim
+    DescaleBorder border_opt;  // optional
     DescaleCustomKernel custom_kernel;  // required if mode is CUSTOM
 } DescaleParams;
 
