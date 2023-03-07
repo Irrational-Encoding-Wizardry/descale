@@ -66,7 +66,7 @@ typedef struct DescaleCustomKernel
 } DescaleCustomKernel;
 
 
-// Optional struct members should be initialized to 0 if not used
+// Optional struct members must be initialized to 0 if not used
 typedef struct DescaleParams
 {
     enum DescaleMode mode;
@@ -75,8 +75,8 @@ typedef struct DescaleParams
     double param2;      // required if mode is BICUBIC
     double shift;       // optional
     double active_dim;  // always required; usually equal to dst_dim
-    DescaleBorder border_opt;  // optional
-    DescaleCustomKernel custom_kernel;  // required if mode is CUSTOM
+    enum DescaleBorder border_handling;        // optional
+    struct DescaleCustomKernel custom_kernel;  // required if mode is CUSTOM
 } DescaleParams;
 
 

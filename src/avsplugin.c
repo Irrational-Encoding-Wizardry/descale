@@ -268,12 +268,12 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
     }
 
     v = avs_array_elt(args, idx++);
-    int border = avs_defined(v) ? avs_as_int(v) : 0;
-    enum DescaleBorder border_enum;
-    if (border == 1)
-        border_enum = DESCALE_BORDER_ZERO;
+    int border_handling = avs_defined(v) ? avs_as_int(v) : 0;
+    enum DescaleBorder border_handling_enum;
+    if (border_handling == 1)
+        border_handling_enum = DESCALE_BORDER_ZERO;
     else
-        border_enum = DESCALE_BORDER_MIRROR;
+        border_handling_enum = DESCALE_BORDER_MIRROR;
 
     v = avs_array_elt(args, idx++);
     int opt = avs_defined(v) ? avs_as_int(v) : 0;
@@ -304,7 +304,7 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
         a8 = avs_new_value_float(shift_v);
         a9 = avs_new_value_float(active_width);
         a10 = avs_new_value_float(active_height);
-        a11 = avs_new_value_int(border);
+        a11 = avs_new_value_int(border_handling);
         a12 = avs_new_value_int(opt);
         AVS_Value descale_args[] = {c2, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12};
         c1 = avs_invoke(env, "Descale", avs_new_value_array(descale_args, 13), NULL);
@@ -316,7 +316,7 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
         return c2;
     }
 
-    struct DescaleParams params = {mode, taps, b, c, 0, 0, border_enum};
+    struct DescaleParams params = {mode, taps, b, c, 0, 0, border_handling_enum};
     struct DescaleData dd = {
         src_width, src_height,
         dst_width, dst_height,
@@ -368,7 +368,7 @@ const char * AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment *env)
         "[src_top]f"
         "[src_width]f"
         "[src_height]f"
-        "[border]i"
+        "[border_handling]i"
         "[opt]i",
         avs_descale_create,
         (void *)(DESCALE_MODE_BILINEAR)
@@ -386,7 +386,7 @@ const char * AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment *env)
         "[src_top]f"
         "[src_width]f"
         "[src_height]f"
-        "[border]i"
+        "[border_handling]i"
         "[opt]i",
         avs_descale_create,
         (void *)(DESCALE_MODE_BICUBIC)
@@ -403,7 +403,7 @@ const char * AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment *env)
         "[src_top]f"
         "[src_width]f"
         "[src_height]f"
-        "[border]i"
+        "[border_handling]i"
         "[opt]i",
         avs_descale_create,
         (void *)(DESCALE_MODE_LANCZOS)
@@ -419,7 +419,7 @@ const char * AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment *env)
         "[src_top]f"
         "[src_width]f"
         "[src_height]f"
-        "[border]i"
+        "[border_handling]i"
         "[opt]i",
         avs_descale_create,
         (void *)(DESCALE_MODE_SPLINE16)
@@ -435,7 +435,7 @@ const char * AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment *env)
         "[src_top]f"
         "[src_width]f"
         "[src_height]f"
-        "[border]i"
+        "[border_handling]i"
         "[opt]i",
         avs_descale_create,
         (void *)(DESCALE_MODE_SPLINE36)
@@ -451,7 +451,7 @@ const char * AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment *env)
         "[src_top]f"
         "[src_width]f"
         "[src_height]f"
-        "[border]i"
+        "[border_handling]i"
         "[opt]i",
         avs_descale_create,
         (void *)(DESCALE_MODE_SPLINE64)
@@ -471,7 +471,7 @@ const char * AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment *env)
         "[src_top]f"
         "[src_width]f"
         "[src_height]f"
-        "[border]i"
+        "[border_handling]i"
         "[opt]i",
         avs_descale_create,
         NULL

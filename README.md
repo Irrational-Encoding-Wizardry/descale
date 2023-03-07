@@ -10,19 +10,19 @@ The VapourSynth plugin itself supports every constant input format. If the forma
 The included python wrapper, contrary to using the plugin directly, doesn't descale the chroma planes but scales them normally with `Spline36`.
 
 ```
-descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, bool force, bool force_h, bool force_v, int opt=0)
+descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Debicubic(clip src, int width, int height, float b=0.0, float c=0.5, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, bool force, bool force_h, bool force_v, int opt=0)
+descale.Debicubic(clip src, int width, int height, float b=0.0, float c=0.5, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, bool force, bool force_h, bool force_v, int opt=0)
+descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, bool force, bool force_h, bool force_v, int opt=0)
+descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, bool force, bool force_h, bool force_v, int opt=0)
+descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, bool force, bool force_h, bool force_v, int opt=0)
+descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Descale(clip src, int width, int height, str kernel, func custom_kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, bool force, bool force_h, bool force_v, int opt=0)
+descale.Descale(clip src, int width, int height, str kernel, func custom_kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 ```
 
 The AviSynth+ plugin is used similarly, but without the `descale` namespace.
@@ -37,7 +37,7 @@ core.descale.Descale(src, w, h, custom_kernel=lambda x: 1.0 - x, taps=1)
 # Delanczos
 import math
 def sinc(x):
-	return 1.0 if x == 0 else math.sin(x * math.pi) / (x * math.pi)
+    return 1.0 if x == 0 else math.sin(x * math.pi) / (x * math.pi)
 taps = 3
 core.descale.Descale(src, w, h, custom_kernel=lambda x: sinc(x) * sinc(x / taps), taps=taps)
 
@@ -65,7 +65,7 @@ We now have the original vector `x`.
 
 ## Compilation
 
-By default only the VapourSynth plugin is compiled
+By default only the VapourSynth plugin is compiled.
 To build the AviSynth+ plugin, add `-Dlibtype=avisynth` or `-Dlibtype=both` to the meson command below.
 
 ### Linux
