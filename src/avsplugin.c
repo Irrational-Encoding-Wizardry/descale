@@ -76,16 +76,16 @@ static AVS_VideoFrame * AVSC_CC avs_descale_get_frame(AVS_FilterInfo *fi, int n)
             int intermediate_stride = avs_get_pitch_p(dst, plane);
             float *intermediatep = avs_pool_allocate(fi->env, intermediate_stride * d->dd.src_height * sizeof (float), 32, AVS_ALLOCTYPE_POOLED_ALLOC);
 
-            d->dd.dsapi.process_vectors(d->dd.dscore_h[i && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (i ? d->dd.subsampling_v : 0), src_stride, intermediate_stride, srcp, intermediatep);
-            d->dd.dsapi.process_vectors(d->dd.dscore_v[i && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.dst_width >> (i ? d->dd.subsampling_h : 0), intermediate_stride, dst_stride, intermediatep, dstp);
+            d->dd.dsapi.process_vectors(d->dd.dscore_h[i && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (i ? d->dd.subsampling_v : 0), src_stride, 0, intermediate_stride, srcp, NULL, intermediatep);
+            d->dd.dsapi.process_vectors(d->dd.dscore_v[i && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.dst_width >> (i ? d->dd.subsampling_h : 0), intermediate_stride, 0, dst_stride, intermediatep, NULL, dstp);
 
             avs_pool_free(fi->env, intermediatep);
 
         } else if (d->dd.process_h) {
-            d->dd.dsapi.process_vectors(d->dd.dscore_h[i && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (i ? d->dd.subsampling_v : 0), src_stride, dst_stride, srcp, dstp);
+            d->dd.dsapi.process_vectors(d->dd.dscore_h[i && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (i ? d->dd.subsampling_v : 0), src_stride, 0, dst_stride, srcp, NULL, dstp);
 
         } else if (d->dd.process_v) {
-            d->dd.dsapi.process_vectors(d->dd.dscore_v[i && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.src_width >> (i ? d->dd.subsampling_h : 0), src_stride, dst_stride, srcp, dstp);
+            d->dd.dsapi.process_vectors(d->dd.dscore_v[i && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.src_width >> (i ? d->dd.subsampling_h : 0), src_stride, 0, dst_stride, srcp, NULL, dstp);
         }
     }
 

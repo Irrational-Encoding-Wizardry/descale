@@ -38,6 +38,7 @@ struct VSDescaleData
     pthread_mutex_t lock;
 
     VSNode *node;
+    VSNode *ignore_mask_node;
     VSVideoInfo vi;
 
     struct DescaleData dd;
@@ -57,9 +58,10 @@ static const VSFrame *VS_CC descale_get_frame(int n, int activation_reason, void
 
     if (activation_reason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frame_ctx);
+        if (d->ignore_mask_node)
+            vsapi->requestFrameFilter(n, d->ignore_mask_node, frame_ctx);
 
     } else if (activation_reason == arAllFramesReady) {
-
         if (!d->initialized) {
             pthread_mutex_lock(&d->lock);
             if (!d->initialized) {
@@ -71,6 +73,9 @@ static const VSFrame *VS_CC descale_get_frame(int n, int activation_reason, void
 
         const VSVideoFormat fmt = d->vi.format;
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frame_ctx);
+        const VSFrame *ignore_mask = NULL;
+        if (d->ignore_mask_node)
+            ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask_node, frame_ctx);
 
         VSFrame *intermediate = vsapi->newVideoFrame(&fmt, d->dd.dst_width, d->dd.src_height, NULL, core);
         VSFrame *dst = vsapi->newVideoFrame(&fmt, d->dd.dst_width, d->dd.dst_height, src, core);
@@ -81,23 +86,31 @@ static const VSFrame *VS_CC descale_get_frame(int n, int activation_reason, void
             const float *srcp = (const float *)vsapi->getReadPtr(src, plane);
             float *dstp = (float *)vsapi->getWritePtr(dst, plane);
 
+            int imask_stride = 0;
+            const unsigned char *imaskp = NULL;
+            if (ignore_mask) {
+                imask_stride = vsapi->getStride(ignore_mask, plane);
+                imaskp = vsapi->getReadPtr(ignore_mask, plane);
+            }
+
             if (d->dd.process_h && d->dd.process_v) {
                 int intermediate_stride = vsapi->getStride(intermediate, plane) / sizeof (float);
                 float *intermediatep = (float *)vsapi->getWritePtr(intermediate, plane);
 
-                d->dd.dsapi.process_vectors(d->dd.dscore_h[plane && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (plane ? d->dd.subsampling_v : 0), src_stride, intermediate_stride, srcp, intermediatep);
-                d->dd.dsapi.process_vectors(d->dd.dscore_v[plane && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.dst_width >> (plane ? d->dd.subsampling_h : 0), intermediate_stride, dst_stride, intermediatep, dstp);
+                d->dd.dsapi.process_vectors(d->dd.dscore_h[plane && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (plane ? d->dd.subsampling_v : 0), src_stride, 0, intermediate_stride, srcp, NULL, intermediatep);
+                d->dd.dsapi.process_vectors(d->dd.dscore_v[plane && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.dst_width >> (plane ? d->dd.subsampling_h : 0), intermediate_stride, 0, dst_stride, intermediatep, NULL, dstp);
 
             } else if (d->dd.process_h) {
-                d->dd.dsapi.process_vectors(d->dd.dscore_h[plane && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (plane ? d->dd.subsampling_v : 0), src_stride, dst_stride, srcp, dstp);
+                d->dd.dsapi.process_vectors(d->dd.dscore_h[plane && d->dd.subsampling_h], DESCALE_DIR_HORIZONTAL, d->dd.src_height >> (plane ? d->dd.subsampling_v : 0), src_stride, imask_stride, dst_stride, srcp, imaskp, dstp);
 
             } else if (d->dd.process_v) {
-                d->dd.dsapi.process_vectors(d->dd.dscore_v[plane && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.src_width >> (plane ? d->dd.subsampling_h : 0), src_stride, dst_stride, srcp, dstp);
+                d->dd.dsapi.process_vectors(d->dd.dscore_v[plane && d->dd.subsampling_v], DESCALE_DIR_VERTICAL, d->dd.src_width >> (plane ? d->dd.subsampling_h : 0), src_stride, imask_stride, dst_stride, srcp, imaskp, dstp);
             }
         }
 
         vsapi->freeFrame(intermediate);
         vsapi->freeFrame(src);
+        vsapi->freeFrame(ignore_mask);
 
         return dst;
     }
@@ -111,6 +124,7 @@ static void VS_CC descale_free(void *instance_data, VSCore *core, const VSAPI *v
     struct VSDescaleData *d = (struct VSDescaleData *)instance_data;
 
     vsapi->freeNode(d->node);
+    vsapi->freeNode(d->ignore_mask_node);
 
     if (d->initialized) {
         if (d->dd.process_h) {
@@ -247,6 +261,31 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
 
     int err;
 
+    d.ignore_mask_node = vsapi->mapGetNode(in, "ignore_mask", 0, &err);
+    if (err) {
+        d.ignore_mask_node = NULL;
+    } else {
+        params.has_ignore_mask = 1;
+        const VSVideoInfo *mvi = vsapi->getVideoInfo(d.ignore_mask_node);
+        if (mvi->format.sampleType != stInteger || mvi->format.bitsPerSample != 8) {
+            vsapi->mapSetError(out, "Descale: Ignore mask must use 8 bit integer samples.");    // TODO improve this?
+            vsapi->freeNode(d.node);
+            vsapi->freeNode(d.ignore_mask_node);
+            return;
+        }
+        if (mvi->format.numPlanes != d.vi.format.numPlanes
+                || mvi->format.subSamplingH != d.vi.format.subSamplingH
+                || mvi->format.subSamplingW != d.vi.format.subSamplingW
+                || mvi->width != d.dd.src_width
+                || mvi->height != d.dd.src_height
+                || mvi->numFrames != d.vi.numFrames) {
+            vsapi->mapSetError(out, "Descale: Ignore mask format must match clip format.");    // TODO improve this?
+            vsapi->freeNode(d.node);
+            vsapi->freeNode(d.ignore_mask_node);
+            return;
+        }
+    }
+
     d.dd.shift_h = vsapi->mapGetFloat(in, "src_left", 0, &err);
     if (err)
         d.dd.shift_h = 0.0;
@@ -284,21 +323,27 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     else
         opt_enum = DESCALE_OPT_AUTO;
 
+    if (d.ignore_mask_node)
+        opt_enum = DESCALE_OPT_NONE;
+
     if (d.dd.dst_width < 1) {
         vsapi->mapSetError(out, "Descale: width must be greater than 0.");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask_node);
         return;
     }
 
     if (d.dd.dst_height < 8) {
         vsapi->mapSetError(out, "Descale: Output height must be greater than or equal to 8.");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask_node);
         return;
     }
 
     if (d.dd.dst_width > d.dd.src_width || d.dd.dst_height > d.dd.src_height) {
         vsapi->mapSetError(out, "Descale: Output dimension must be less than or equal to input dimension.");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask_node);
         return;
     }
 
@@ -337,6 +382,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
             vsapi->freeFunction(custom_kernel);
             free(params.custom_kernel.user_data);
             vsapi->freeNode(d.node);
+            vsapi->freeNode(d.ignore_mask_node);
             return;
 
         } else if (err) {
@@ -346,6 +392,7 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         if (params.taps < 1) {
             vsapi->mapSetError(out, "Descale: taps must be greater than 0.");
             vsapi->freeNode(d.node);
+            vsapi->freeNode(d.ignore_mask_node);
             return;
         }
 
@@ -378,6 +425,14 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     if (!d.dd.process_h && !d.dd.process_v) {
         vsapi->mapSetNode(out, "clip", d.node, maReplace);
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask_node);
+        return;
+    }
+
+    if (d.dd.process_h && d.dd.process_v && d.ignore_mask_node) {
+        vsapi->mapSetError(out, "Descale: Ignore mask is not supported when descaling along both axes.");
+        vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask_node);
         return;
     }
 
@@ -434,8 +489,11 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         vsapi->mapSetInt(map1, "force_h", force_h, maReplace);
         vsapi->mapSetInt(map1, "force_v", force_v, maReplace);
         vsapi->mapSetInt(map1, "opt", (int)opt_enum, maReplace);
+        if (d.ignore_mask_node)
+            vsapi->mapSetNode(map1, "ignore_mask", d.ignore_mask_node, maReplace);
         map2 = vsapi->invoke(descale_plugin, "Descale", map1);
         vsapi->freeNode(tmp_node);
+        vsapi->freeNode(d.ignore_mask_node);
         vsapi->freeMap(map1);
         if ((err_msg = vsapi->mapGetError(map2))) {
             vsapi->mapSetError(out, err_msg);
@@ -476,8 +534,8 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
     struct VSDescaleData *data = malloc(sizeof d);
     *data = d;
     data->dd.params = params;
-    VSFilterDependency deps[] = {{data->node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, funcname, &data->vi, descale_get_frame, descale_free, fmParallel, deps, 1, data, core);
+    VSFilterDependency deps[] = {{data->node, rpStrictSpatial}, {data->ignore_mask_node, rpStrictSpatial}};
+    vsapi->createVideoFilter(out, funcname, &data->vi, descale_get_frame, descale_free, fmParallel, deps, data->ignore_mask_node ? 2 : 1, data, core);
 }
 
 
@@ -494,6 +552,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_width:float:opt;"
             "src_height:float:opt;"
             "border_handling:int:opt;"
+            "ignore_mask:vnode:opt;"
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
@@ -512,6 +571,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_width:float:opt;"
             "src_height:float:opt;"
             "border_handling:int:opt;"
+            "ignore_mask:vnode:opt;"
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
@@ -529,6 +589,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_width:float:opt;"
             "src_height:float:opt;"
             "border_handling:int:opt;"
+            "ignore_mask:vnode:opt;"
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
@@ -545,6 +606,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_width:float:opt;"
             "src_height:float:opt;"
             "border_handling:int:opt;"
+            "ignore_mask:vnode:opt;"
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
@@ -561,6 +623,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_width:float:opt;"
             "src_height:float:opt;"
             "border_handling:int:opt;"
+            "ignore_mask:vnode:opt;"
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
@@ -577,6 +640,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_width:float:opt;"
             "src_height:float:opt;"
             "border_handling:int:opt;"
+            "ignore_mask:vnode:opt;"
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
@@ -598,6 +662,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
             "src_width:float:opt;"
             "src_height:float:opt;"
             "border_handling:int:opt;"
+            "ignore_mask:vnode:opt;"
             "force:int:opt;"
             "force_h:int:opt;"
             "force_v:int:opt;"
