@@ -272,6 +272,8 @@ static AVS_Value AVSC_CC avs_descale_create(AVS_ScriptEnvironment *env, AVS_Valu
     enum DescaleBorder border_handling_enum;
     if (border_handling == 1)
         border_handling_enum = DESCALE_BORDER_ZERO;
+    if (border_handling == 2)
+        border_handling_enum = DESCALE_BORDER_REPEAT;
     else
         border_handling_enum = DESCALE_BORDER_MIRROR;
 
