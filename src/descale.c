@@ -265,6 +265,11 @@ static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int
             if (xpos < 0.0 || xpos > src_dim) {
                 if (border_handling == DESCALE_BORDER_ZERO) {
                     continue;
+                } else if (border_handling == DESCALE_BORDER_REPEAT) {
+                    if (xpos < 0.0)
+                        real_pos = 0.0;
+                    else if (xpos >= src_dim)
+                        real_pos = src_dim - 0.5;
                 } else {    // Mirror
                     if (xpos < 0.0)
                         real_pos = -xpos;

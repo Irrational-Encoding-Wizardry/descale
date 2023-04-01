@@ -5,6 +5,7 @@ from vapoursynth import core, GRAYS, RGBS, GRAY, YUV, RGB
 class BorderHandling(IntEnum):
     MIRROR = 0
     ZERO = 1
+    REPEAT = 2
 
 class Opt(IntEnum):
     AUTO = 0

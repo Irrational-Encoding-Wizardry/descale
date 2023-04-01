@@ -268,6 +268,8 @@ static void VS_CC descale_create(const VSMap *in, VSMap *out, void *user_data, V
         border_handling = 0;
     if (border_handling == 1)
         params.border_handling = DESCALE_BORDER_ZERO;
+    else if (border_handling == 2)
+        params.border_handling = DESCALE_BORDER_REPEAT;
     else
         params.border_handling = DESCALE_BORDER_MIRROR;
 

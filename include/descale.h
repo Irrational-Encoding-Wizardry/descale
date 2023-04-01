@@ -47,7 +47,8 @@ typedef enum DescaleDir
 typedef enum DescaleBorder
 {
     DESCALE_BORDER_MIRROR = 0,
-    DESCALE_BORDER_ZERO   = 1
+    DESCALE_BORDER_ZERO   = 1,
+    DESCALE_BORDER_REPEAT = 2
 } DescaleBorder;
 
 
