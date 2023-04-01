@@ -258,30 +258,23 @@ static void scaling_weights(enum DescaleMode mode, int support, int src_dim, int
             double xpos = begin_pos + j;
             total += calculate_weight(mode, support, xpos - pos, param1, param2, ck);
         }
-        if (border_handling == DESCALE_BORDER_ZERO) {
-            for (int j = 0; j < 2 * support; j++) {
-                double xpos = begin_pos + j;
-                if (xpos >= 0.0 && xpos < src_dim) {
-                    int idx = (int)floor(xpos);
-                    (*weights)[i * src_dim + idx] += calculate_weight(mode, support, xpos - pos, param1, param2, ck) / total;
+        for (int j = 0; j < 2 * support; j++) {
+            double xpos = begin_pos + j;
+            double real_pos = xpos;
+
+            if (xpos < 0.0 || xpos > src_dim) {
+                if (border_handling == DESCALE_BORDER_ZERO) {
+                    continue;
+                } else {    // Mirror
+                    if (xpos < 0.0)
+                        real_pos = -xpos;
+                    else if (xpos >= src_dim)
+                        real_pos = DSMIN(2.0 * src_dim - xpos, src_dim - 0.5);
                 }
             }
-        } else {
-            for (int j = 0; j < 2 * support; j++) {
-                double xpos = begin_pos + j;
-                double real_pos;
 
-                // Mirror the position if it goes beyond image bounds.
-                if (xpos < 0.0)
-                    real_pos = -xpos;
-                else if (xpos >= src_dim)
-                    real_pos = DSMIN(2.0 * src_dim - xpos, src_dim - 0.5);
-                else
-                    real_pos = xpos;
-
-                int idx = (int)floor(real_pos);
-                (*weights)[i * src_dim + idx] += calculate_weight(mode, support, xpos - pos, param1, param2, ck) / total;
-            }
+            int idx = (int)floor(real_pos);
+            (*weights)[i * src_dim + idx] += calculate_weight(mode, support, xpos - pos, param1, param2, ck) / total;
         }
     }
 }
