@@ -536,7 +536,8 @@ static inline int check_imask(unsigned char value) {
     return value >= 128;
 }
 
-static void process_plane_masked(int dst_dim, int src_dim, int vector_count, enum DescaleDir dir, int bandwidth, int * restrict weights_left_idx, int * restrict weights_right_idx,
+static void process_plane_masked(int dst_dim, int src_dim, int vector_count, enum DescaleDir dir, int bandwidth,
+                              int * restrict weights_left_idx, int * restrict weights_right_idx, int * restrict weights_top_idx, int * restrict weights_bot_idx,
                               int weights_columns, float * restrict weights, double * restrict multiplied_weights,
                               int src_stride, int imask_stride, int dst_stride, const float * restrict srcp, const unsigned char * restrict imaskp, float * restrict dstp)
 {
@@ -583,11 +584,12 @@ static void process_plane_masked(int dst_dim, int src_dim, int vector_count, enu
             for (int j = imask_start; j < src_dim; j++) {
                 if (!check_imask(imaskp[i * imuli + j * jmuli]))
                     continue;
-                for (int r = 0; r < dst_dim; r++) {
-                    if (j < weights_left_idx[r] || j >= weights_right_idx[r]) continue;
-                    for (int s = r; s < dst_dim; s++) {
-                        if (j < weights_left_idx[s] || j >= weights_right_idx[s]) continue;
-                        modified_ldlt[r * bandwidth + s - r] -= weights[r * weights_columns + j - weights_left_idx[r]] * weights[s * weights_columns + j - weights_left_idx[s]];
+                int top = weights_top_idx[j];
+                int bot = weights_bot_idx[j];
+                for (int r = top; r < bot; r++) {
+                    double wr = weights[r * weights_columns + j - weights_left_idx[r]];
+                    for (int s = r; s < bot; s++) {
+                        modified_ldlt[r * bandwidth + s - r] -= wr * weights[s * weights_columns + j - weights_left_idx[s]];
                     }
                 }
             }
@@ -650,7 +652,8 @@ static void descale_process_vectors_c(struct DescaleCore *core, enum DescaleDir 
 {
 
     if (imaskp) {
-        process_plane_masked(core->dst_dim, core->src_dim, vector_count, dir, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
+        process_plane_masked(core->dst_dim, core->src_dim, vector_count, dir, core->bandwidth,
+                             core->weights_left_idx, core->weights_right_idx, core->weights_top_idx, core->weights_bot_idx,
                              core->weights_columns, core->weights, core->multiplied_weights, src_stride, imask_stride, dst_stride, srcp, imaskp, dstp);
     } else if (dir == DESCALE_DIR_HORIZONTAL) {
         if (core->bandwidth == 3)
@@ -716,6 +719,8 @@ static struct DescaleCore *create_core(int src_dim, int dst_dim, struct DescaleP
 
     core.weights_left_idx = calloc(ceil_n(dst_dim, 8), sizeof (int));
     core.weights_right_idx = calloc(ceil_n(dst_dim, 8), sizeof (int));
+    core.weights_top_idx = calloc(ceil_n(src_dim, 8), sizeof (int));
+    core.weights_bot_idx = calloc(ceil_n(src_dim, 8), sizeof (int));
     for (int i = 0; i < dst_dim; i++) {
         for (int j = 0; j < src_dim; j++) {
             if (transposed_weights[i * src_dim + j] != 0.0) {
@@ -726,6 +731,20 @@ static struct DescaleCore *create_core(int src_dim, int dst_dim, struct DescaleP
         for (int j = src_dim - 1; j >= 0; j--) {
             if (transposed_weights[i * src_dim + j] != 0.0) {
                 core.weights_right_idx[i] = j + 1;
+                break;
+            }
+        }
+    }
+    for (int i = 0; i < src_dim; i++) {
+        for (int j = 0; j < dst_dim; j++) {
+            if (transposed_weights[j * src_dim + i] != 0.0) {
+                core.weights_top_idx[i] = j;
+                break;
+            }
+        }
+        for (int j = dst_dim - 1; j >= 0; j--) {
+            if (transposed_weights[j * src_dim + i] != 0.0) {
+                core.weights_bot_idx[i] = j + 1;
                 break;
             }
         }
@@ -782,6 +801,8 @@ static void free_core(struct DescaleCore *core)
     free(core->weights);
     free(core->weights_left_idx);
     free(core->weights_right_idx);
+    free(core->weights_top_idx);
+    free(core->weights_bot_idx);
     free(core->multiplied_weights);
     free(core->diagonal);
     for (int i = 0; core->upper && i < core->bandwidth / 2; i++) {

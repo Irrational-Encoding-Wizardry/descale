@@ -94,6 +94,8 @@ typedef struct DescaleCore
     double *multiplied_weights;
     int *weights_left_idx;
     int *weights_right_idx;
+    int *weights_top_idx;
+    int *weights_bot_idx;
     int weights_columns;
 } DescaleCore;
 
