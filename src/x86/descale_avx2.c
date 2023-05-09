@@ -745,7 +745,7 @@ static void process_plane_v_avx2(int height, int current_height, int current_wid
 
 
 void descale_process_vectors_avx2(struct DescaleCore *core, enum DescaleDir dir, int vector_count,
-                                  int src_stride, int dst_stride, const float *srcp, float *dstp)
+                                  int src_stride, int imask_stride, int dst_stride, const float *srcp, const unsigned char *imaskp, float *dstp)
 {
     if (dir == DESCALE_DIR_HORIZONTAL) {
         float *temp;

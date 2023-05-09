@@ -25,6 +25,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include "common.h"
 #include "descale.h"
 
@@ -531,11 +532,130 @@ static void process_plane_v_c(int height, int current_height, int current_width,
     }
 }
 
+static inline int check_imask(unsigned char value) {
+    return value >= 128;
+}
+
+static void process_plane_masked(int dst_dim, int src_dim, int vector_count, enum DescaleDir dir, int bandwidth,
+                              int * restrict weights_left_idx, int * restrict weights_right_idx, int * restrict weights_top_idx, int * restrict weights_bot_idx,
+                              int weights_columns, float * restrict weights, double * restrict multiplied_weights,
+                              int src_stride, int imask_stride, int dst_stride, const float * restrict srcp, const unsigned char * restrict imaskp, float * restrict dstp)
+{
+    double *modified_ldlt = calloc(dst_dim * bandwidth, sizeof (double));
+    int c = bandwidth / 2;
+
+    int imuls = dir == DESCALE_DIR_HORIZONTAL ? src_stride : 1;
+    int jmuls = dir == DESCALE_DIR_HORIZONTAL ? 1 : src_stride;
+
+    int imuli = dir == DESCALE_DIR_HORIZONTAL ? imask_stride : 1;
+    int jmuli = dir == DESCALE_DIR_HORIZONTAL ? 1 : imask_stride;
+
+    int imuld = dir == DESCALE_DIR_HORIZONTAL ? dst_stride : 1;
+    int jmuld = dir == DESCALE_DIR_HORIZONTAL ? 1 : dst_stride;
+
+    double eps = DBL_EPSILON;
+
+    for (int i = 0; i < vector_count; i++) {
+
+        int same_mask = i > 0;
+        if (i > 0) {
+            for (int j = 0; j < src_dim; j++) {
+                if (check_imask(imaskp[i * imuli + j * jmuli]) != check_imask(imaskp[(i - 1) * imuli + j * jmuli])) {
+                    same_mask = false;
+                    break;
+                }
+            }
+        }
+
+        if (!same_mask) {
+            int imask_start = 0;
+
+            for (int j = 0; j < src_dim; j++) {
+                imask_start = j;
+                if (check_imask(imaskp[i * imuli + j * jmuli]))
+                    break;
+            }
+
+            // Restore the ldlt to the original multiplied weights
+            memcpy(modified_ldlt, multiplied_weights, dst_dim * bandwidth * sizeof (double));
+
+            // Subtract the multiplied masked weights to obtain the new matrix:
+            // M' P M = M' M - M' (I - P) M
+            for (int j = imask_start; j < src_dim; j++) {
+                if (!check_imask(imaskp[i * imuli + j * jmuli]))
+                    continue;
+                int top = weights_top_idx[j];
+                int bot = weights_bot_idx[j];
+                for (int r = top; r < bot; r++) {
+                    double wr = weights[r * weights_columns + j - weights_left_idx[r]];
+                    for (int s = r; s < bot; s++) {
+                        modified_ldlt[r * bandwidth + s - r] -= wr * weights[s * weights_columns + j - weights_left_idx[s]];
+                    }
+                }
+            }
+
+            // Now, redo the LDLT decomposition
+            for (int i = 0; i < dst_dim; i++) {
+                int end = DSMIN(c + 1, dst_dim - i);
+
+                for (int j = 1; j < end; j++) {
+                    double d = modified_ldlt[i * bandwidth + j] / (modified_ldlt[i * bandwidth] + eps);
+
+                    for (int k = 0; k < end - j; k++) {
+                        modified_ldlt[(i + j) * bandwidth + k] -= d * modified_ldlt[i * bandwidth + j + k];;
+                    }
+                }
+
+                double e = 1.0 / (modified_ldlt[i * bandwidth] + eps);
+                for (int j = 1; j < end; j++) {
+                    modified_ldlt[i * bandwidth + j] *= e;
+                }
+            }
+        }
+
+        // Now we can do the usual forward/backward substitution
+        for (int j = 0; j < dst_dim; j++) {
+            float sum = 0.0f;
+            int start = DSMAX(0, j - c);
+
+            // A' b
+            for (int k = weights_left_idx[j]; k < weights_right_idx[j]; ++k)
+                sum += weights[j * weights_columns + k - weights_left_idx[j]] * srcp[i * imuls + k * jmuls] * (1 - check_imask(imaskp[i * imuli + k * jmuli]));
+
+            // Solve LD y = A' b
+            for (int k = start; k < j; k++) {
+                sum -= modified_ldlt[k * bandwidth + j - k] * modified_ldlt[k * bandwidth] * dstp[i * imuld + k * jmuld];
+            }
+
+            dstp[i * imuld + j * jmuld] = sum / (eps + modified_ldlt[j * bandwidth]);
+        }
+
+        // Solve L' x = y
+        for (int j = dst_dim - 2; j >= 0; j--) {
+            float sum = 0.0f;
+            int start = DSMIN(dst_dim - 1, j + c);
+
+            for (int k = start; k > j; k--) {
+                sum += modified_ldlt[j * bandwidth + k - j] * dstp[i * imuld + k * jmuld];
+            }
+
+            dstp[i * imuld + j * jmuld] -= sum;
+        }
+    }
+
+    free(modified_ldlt);
+}
+
 
 static void descale_process_vectors_c(struct DescaleCore *core, enum DescaleDir dir, int vector_count,
-                                      int src_stride, int dst_stride, const float *srcp, float *dstp)
+                                      int src_stride, int imask_stride, int dst_stride, const float *srcp, const unsigned char *imaskp, float *dstp)
 {
-    if (dir == DESCALE_DIR_HORIZONTAL) {
+
+    if (imaskp) {
+        process_plane_masked(core->dst_dim, core->src_dim, vector_count, dir, core->bandwidth,
+                             core->weights_left_idx, core->weights_right_idx, core->weights_top_idx, core->weights_bot_idx,
+                             core->weights_columns, core->weights, core->multiplied_weights, src_stride, imask_stride, dst_stride, srcp, imaskp, dstp);
+    } else if (dir == DESCALE_DIR_HORIZONTAL) {
         if (core->bandwidth == 3)
             process_plane_h_b3_c(core->dst_dim, core->src_dim, vector_count, core->bandwidth, core->weights_left_idx, core->weights_right_idx,
                                  core->weights_columns, core->weights, core->lower, core->upper, core->diagonal, src_stride, dst_stride, srcp, dstp);
@@ -592,13 +712,15 @@ static struct DescaleCore *create_core(int src_dim, int dst_dim, struct DescaleP
     double *weights;
     double *transposed_weights;
     double *multiplied_weights;
-    double *lower;
+    double *ldlt;
 
     scaling_weights(params->mode, support, dst_dim, src_dim, params->param1, params->param2, params->shift, params->active_dim, params->border_handling, &params->custom_kernel, &weights);
     transpose_matrix(src_dim, dst_dim, weights, &transposed_weights);
 
     core.weights_left_idx = calloc(ceil_n(dst_dim, 8), sizeof (int));
     core.weights_right_idx = calloc(ceil_n(dst_dim, 8), sizeof (int));
+    core.weights_top_idx = calloc(ceil_n(src_dim, 8), sizeof (int));
+    core.weights_bot_idx = calloc(ceil_n(src_dim, 8), sizeof (int));
     for (int i = 0; i < dst_dim; i++) {
         for (int j = 0; j < src_dim; j++) {
             if (transposed_weights[i * src_dim + j] != 0.0) {
@@ -613,11 +735,26 @@ static struct DescaleCore *create_core(int src_dim, int dst_dim, struct DescaleP
             }
         }
     }
+    for (int i = 0; i < src_dim; i++) {
+        for (int j = 0; j < dst_dim; j++) {
+            if (transposed_weights[j * src_dim + i] != 0.0) {
+                core.weights_top_idx[i] = j;
+                break;
+            }
+        }
+        for (int j = dst_dim - 1; j >= 0; j--) {
+            if (transposed_weights[j * src_dim + i] != 0.0) {
+                core.weights_bot_idx[i] = j + 1;
+                break;
+            }
+        }
+    }
 
     multiply_sparse_matrices(dst_dim, src_dim, core.weights_left_idx, core.weights_right_idx, transposed_weights, weights, &multiplied_weights);
-    banded_ldlt_decomposition(dst_dim, core.bandwidth, multiplied_weights);
-    transpose_matrix(dst_dim, dst_dim, multiplied_weights, &lower);
-    multiply_banded_matrix_with_diagonal(dst_dim, core.bandwidth, lower);
+
+    ldlt = calloc(dst_dim * dst_dim, sizeof (double));
+    memcpy(ldlt, multiplied_weights, dst_dim * dst_dim * sizeof (double));
+    banded_ldlt_decomposition(dst_dim, core.bandwidth, ldlt);
 
     int max = 0;
     for (int i = 0; i < dst_dim; i++) {
@@ -633,12 +770,24 @@ static struct DescaleCore *create_core(int src_dim, int dst_dim, struct DescaleP
         }
     }
 
-    extract_compressed_lower_upper_diagonal(dst_dim, core.bandwidth, lower, multiplied_weights, &core.lower, &core.upper, &core.diagonal);
-
+    if (params->has_ignore_mask) {
+        core.multiplied_weights = calloc(dst_dim * core.bandwidth, sizeof (double));
+        for (int i = 0; i < dst_dim; i++) {
+            for (int j = 0; j < core.bandwidth; j++) {
+                core.multiplied_weights[i * core.bandwidth + j] = multiplied_weights[i * dst_dim + i + j];
+            }
+        }
+    } else {
+        double *lower;
+        transpose_matrix(dst_dim, dst_dim, ldlt, &lower);
+        multiply_banded_matrix_with_diagonal(dst_dim, core.bandwidth, lower);
+        extract_compressed_lower_upper_diagonal(dst_dim, core.bandwidth, lower, ldlt, &core.lower, &core.upper, &core.diagonal);
+        free(lower);
+    }
     free(weights);
     free(transposed_weights);
     free(multiplied_weights);
-    free(lower);
+    free(ldlt);
 
     struct DescaleCore *corep = malloc(sizeof core);
     *corep = core;
@@ -652,8 +801,11 @@ static void free_core(struct DescaleCore *core)
     free(core->weights);
     free(core->weights_left_idx);
     free(core->weights_right_idx);
+    free(core->weights_top_idx);
+    free(core->weights_bot_idx);
+    free(core->multiplied_weights);
     free(core->diagonal);
-    for (int i = 0; i < core->bandwidth / 2; i++) {
+    for (int i = 0; core->upper && i < core->bandwidth / 2; i++) {
         free(core->lower[i]);
         free(core->upper[i]);
     }

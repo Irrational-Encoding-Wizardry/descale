@@ -31,7 +31,7 @@
 
 
 void descale_process_vectors_avx2(struct DescaleCore *core, enum DescaleDir dir, int vector_count,
-                                  int src_stride, int dst_stride, const float *srcp, float *dstp);
+                                  int src_stride, int imask_stride, int dst_stride, const float *srcp, const unsigned char *imaskp, float *dstp);
 
 
 #endif  // DESCALE_AVX2_H

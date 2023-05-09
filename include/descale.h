@@ -76,6 +76,7 @@ typedef struct DescaleParams
     double param2;      // required if mode is BICUBIC
     double shift;       // optional
     double active_dim;  // always required; usually equal to dst_dim
+    int has_ignore_mask;
     enum DescaleBorder border_handling;        // optional
     struct DescaleCustomKernel custom_kernel;  // required if mode is CUSTOM
 } DescaleParams;
@@ -90,8 +91,11 @@ typedef struct DescaleCore
     float **lower;
     float *diagonal;
     float *weights;
+    double *multiplied_weights;
     int *weights_left_idx;
     int *weights_right_idx;
+    int *weights_top_idx;
+    int *weights_bot_idx;
     int weights_columns;
 } DescaleCore;
 
@@ -101,7 +105,7 @@ typedef struct DescaleAPI
     struct DescaleCore *(*create_core)(int src_dim, int dst_dim, struct DescaleParams *params);
     void (*free_core)(struct DescaleCore *core);
     void (*process_vectors)(struct DescaleCore *core, enum DescaleDir dir, int vector_count,
-                            int src_stride, int dst_stride, const float *srcp, float *dstp);
+                            int src_stride, int imask_stride, int dst_stride, const float *srcp, const unsigned char *imaskp, float *dstp);
 } DescaleAPI;
 
 

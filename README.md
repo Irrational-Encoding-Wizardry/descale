@@ -10,23 +10,23 @@ The VapourSynth plugin itself supports every constant input format. If the forma
 The included python wrapper, contrary to using the plugin directly, doesn't descale the chroma planes but scales them normally with `Spline36`.
 
 ```
-descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
+descale.Debilinear(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, clip ignore_mask=None, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Debicubic(clip src, int width, int height, float b=0.0, float c=0.5, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
+descale.Debicubic(clip src, int width, int height, float b=0.0, float c=0.5, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, clip ignore_mask=None, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
+descale.Delanczos(clip src, int width, int height, int taps=3, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, clip ignore_mask=None, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
+descale.Despline16(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, clip ignore_mask=None, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
+descale.Despline36(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, clip ignore_mask=None, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
+descale.Despline64(clip src, int width, int height, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, clip ignore_mask=None, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 
-descale.Descale(clip src, int width, int height, str kernel, func custom_kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
+descale.Descale(clip src, int width, int height, str kernel, func custom_kernel, int taps=3, float b=0.0, float c=0.0, float src_left=0.0, float src_top=0.0, float src_width=width, float src_height=height, int border_handling=0, clip ignore_mask=None, bool force=false, bool force_h=false, bool force_v=false, int opt=0)
 ```
 
 The AviSynth+ plugin is used similarly, but without the `descale` namespace.
-Custom kernels are only supported in the VapourSynth plugin.
+Custom kernels and ignore masks are only supported in the VapourSynth plugin.
 
 ### Custom kernels
 
